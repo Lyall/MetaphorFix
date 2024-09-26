@@ -27,7 +27,7 @@ This list will contain bugs which may or may not be fixed.
 - HUD fix is very much a work in progress right now and causes many issues.
 
 ## Screenshots
-|![ezgif-4-30ce77eaf8](https://github.com/user-attachments/assets/a8d2c026-1992-4c79-b5a4-edb603cc833f) |
+| ![ezgif-4-30ce77eaf8](https://github.com/user-attachments/assets/a8d2c026-1992-4c79-b5a4-edb603cc833f) |
 |:--:|
 | Gameplay |
 
