@@ -1,0 +1,464 @@
+#include "stdafx.h"
+#include "helper.hpp"
+
+#include <inipp/inipp.h>
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/base_sink.h>
+#include <safetyhook.hpp>
+
+HMODULE baseModule = GetModuleHandle(NULL);
+HMODULE thisModule; // Fix DLL
+
+// Version
+std::string sFixName = "MetaphorFix";
+std::string sFixVer = "0.7.0";
+std::string sLogFile = sFixName + ".log";
+
+// Logger
+std::shared_ptr<spdlog::logger> logger;
+std::filesystem::path sExePath;
+std::string sExeName;
+std::filesystem::path sThisModulePath;
+
+// Ini
+inipp::Ini<char> ini;
+std::string sConfigFile = sFixName + ".ini";
+std::pair DesktopDimensions = { 0,0 };
+
+// Ini variables
+bool bFixResolution;
+bool bFixHUD;
+bool bIntroSkip;
+bool bPauseOnFocusLoss;
+
+// Aspect ratio + HUD stuff
+float fPi = (float)3.141592653;
+float fAspectRatio;
+float fNativeAspect = (float)16 / 9;
+float fAspectMultiplier;
+float fHUDWidth;
+float fHUDHeight;
+float fHUDWidthOffset;
+float fHUDHeightOffset;
+
+// Variables
+int iCurrentResX;
+int iCurrentResY;
+LPCWSTR sWindowClassName = L"METAPHOR_WINDOW";
+
+void CalculateAspectRatio(bool bLog)
+{
+    // Calculate aspect ratio
+    fAspectRatio = (float)iCurrentResX / (float)iCurrentResY;
+    fAspectMultiplier = fAspectRatio / fNativeAspect;
+
+    // HUD variables
+    fHUDWidth = iCurrentResY * fNativeAspect;
+    fHUDHeight = (float)iCurrentResY;
+    fHUDWidthOffset = (float)(iCurrentResX - fHUDWidth) / 2;
+    fHUDHeightOffset = 0;
+    if (fAspectRatio < fNativeAspect) {
+        fHUDWidth = (float)iCurrentResX;
+        fHUDHeight = (float)iCurrentResX / fNativeAspect;
+        fHUDWidthOffset = 0;
+        fHUDHeightOffset = (float)(iCurrentResY - fHUDHeight) / 2;
+    }
+
+    if (bLog) {
+        // Log details about current resolution
+        spdlog::info("----------");
+        spdlog::info("Current Resolution: Resolution: {}x{}", iCurrentResX, iCurrentResY);
+        spdlog::info("Current Resolution: fAspectRatio: {}", fAspectRatio);
+        spdlog::info("Current Resolution: fAspectMultiplier: {}", fAspectMultiplier);
+        spdlog::info("Current Resolution: fHUDWidth: {}", fHUDWidth);
+        spdlog::info("Current Resolution: fHUDHeight: {}", fHUDHeight);
+        spdlog::info("Current Resolution: fHUDWidthOffset: {}", fHUDWidthOffset);
+        spdlog::info("Current Resolution: fHUDHeightOffset: {}", fHUDHeightOffset);
+        spdlog::info("----------");
+    }   
+}
+
+// Spdlog sink (truncate on startup, single file)
+template<typename Mutex>
+class size_limited_sink : public spdlog::sinks::base_sink<Mutex> {
+public:
+    explicit size_limited_sink(const std::string& filename, size_t max_size)
+        : _filename(filename), _max_size(max_size) {
+        truncate_log_file();
+
+        _file.open(_filename, std::ios::app);
+        if (!_file.is_open()) {
+            throw spdlog::spdlog_ex("Failed to open log file " + filename);
+        }
+    }
+
+protected:
+    void sink_it_(const spdlog::details::log_msg& msg) override {
+        if (std::filesystem::exists(_filename) && std::filesystem::file_size(_filename) >= _max_size) {
+            return;
+        }
+
+        spdlog::memory_buf_t formatted;
+        this->formatter_->format(msg, formatted);
+
+        _file.write(formatted.data(), formatted.size());
+        _file.flush();
+    }
+
+    void flush_() override {
+        _file.flush();
+    }
+
+private:
+    std::ofstream _file;
+    std::string _filename;
+    size_t _max_size;
+
+    void truncate_log_file() {
+        if (std::filesystem::exists(_filename)) {
+            std::ofstream ofs(_filename, std::ofstream::out | std::ofstream::trunc);
+            ofs.close();
+        }
+    }
+};
+
+void Logging()
+{
+    // Get this module path
+    WCHAR thisModulePath[_MAX_PATH] = { 0 };
+    GetModuleFileNameW(thisModule, thisModulePath, MAX_PATH);
+    sThisModulePath = thisModulePath;
+    sThisModulePath = sThisModulePath.remove_filename();
+
+    // Get game name and exe path
+    WCHAR exePath[_MAX_PATH] = { 0 };
+    GetModuleFileNameW(baseModule, exePath, MAX_PATH);
+    sExePath = exePath;
+    sExeName = sExePath.filename().string();
+    sExePath = sExePath.remove_filename();
+
+    // spdlog initialisation
+    {
+        try {
+            // Create 10MB truncated logger
+            logger = logger = std::make_shared<spdlog::logger>(sLogFile, std::make_shared<size_limited_sink<std::mutex>>(sThisModulePath.string() + sLogFile, 10 * 1024 * 1024));
+            spdlog::set_default_logger(logger);
+
+            spdlog::flush_on(spdlog::level::debug);
+            spdlog::info("----------");
+            spdlog::info("{} v{} loaded.", sFixName.c_str(), sFixVer.c_str());
+            spdlog::info("----------");
+            spdlog::info("Log file: {}", sThisModulePath.string() + sLogFile);
+            spdlog::info("----------");
+
+            // Log module details
+            spdlog::info("Module Name: {0:s}", sExeName.c_str());
+            spdlog::info("Module Path: {0:s}", sExePath.string());
+            spdlog::info("Module Address: 0x{0:x}", (uintptr_t)baseModule);
+            spdlog::info("Module Timestamp: {0:d}", Memory::ModuleTimestamp(baseModule));
+            spdlog::info("----------");
+        }
+        catch (const spdlog::spdlog_ex& ex) {
+            AllocConsole();
+            FILE* dummy;
+            freopen_s(&dummy, "CONOUT$", "w", stdout);
+            std::cout << "Log initialisation failed: " << ex.what() << std::endl;
+            FreeLibraryAndExitThread(baseModule, 1);
+        }
+    }
+}
+
+void Configuration()
+{
+    // Initialise config
+    std::ifstream iniFile(sThisModulePath.string() + sConfigFile);
+    if (!iniFile) {
+        AllocConsole();
+        FILE* dummy;
+        freopen_s(&dummy, "CONOUT$", "w", stdout);
+        std::cout << "" << sFixName.c_str() << " v" << sFixVer.c_str() << " loaded." << std::endl;
+        std::cout << "ERROR: Could not locate config file." << std::endl;
+        std::cout << "ERROR: Make sure " << sConfigFile.c_str() << " is located in " << sThisModulePath.string().c_str() << std::endl;
+        FreeLibraryAndExitThread(baseModule, 1);
+    }
+    else {
+        spdlog::info("Config file: {}", sThisModulePath.string() + sConfigFile);
+        ini.parse(iniFile);
+    }
+
+    // Parse config
+    ini.strip_trailing_comments();
+    spdlog::info("----------");
+
+    inipp::get_value(ini.sections["Fix Resolution"], "Enabled", bFixResolution);
+    spdlog::info("Config Parse: bFixResolution: {}", bFixResolution);
+    inipp::get_value(ini.sections["Fix HUD"], "Enabled", bFixHUD);
+    spdlog::info("Config Parse: bFixHUD: {}", bFixHUD);
+    
+    /*inipp::get_value(ini.sections["Intro Skip"], "Enabled", bIntroSkip);
+    spdlog::info("Config Parse: bIntroSkip: {}", bIntroSkip);
+    inipp::get_value(ini.sections["Pause On Focus Loss"], "Enabled", bPauseOnFocusLoss);
+    spdlog::info("Config Parse: bPauseOnFocusLoss: {}", bPauseOnFocusLoss);*/
+
+    spdlog::info("----------");
+
+    // Grab desktop resolution/aspect
+    DesktopDimensions = Util::GetPhysicalDesktopDimensions();
+    iCurrentResX = DesktopDimensions.first;
+    iCurrentResY = DesktopDimensions.second;
+    CalculateAspectRatio(true);
+}
+
+void IntroSkip()
+{
+    /*
+    if (bIntroSkip)
+    {
+        // Skip Intro
+        uint8_t* IntroSkipScanResult = Memory::PatternScan(baseModule, "0F ?? ?? ?? ?? ?? ?? B9 01 00 00 40");
+        if (IntroSkipScanResult)
+        {
+            spdlog::info("Intro Skip: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)IntroSkipScanResult - (uintptr_t)baseModule);
+
+            // Get address
+            DWORD64 IntroSkipValueAddress = Memory::GetAbsolute((uintptr_t)IntroSkipScanResult + 0x3);
+            spdlog::info("Intro Skip: Value address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)IntroSkipValueAddress - (uintptr_t)baseModule);
+
+            // Enable network functions
+            Memory::Write(IntroSkipValueAddress, (BYTE)1);
+            spdlog::info("Intro Skip: Attempted to enable network functions.");
+
+            // Skip intro
+            Memory::Write(IntroSkipValueAddress - 0x3, (BYTE)1);
+            spdlog::info("Intro Skip: Skipped intro.");
+        }
+        else if (!IntroSkipScanResult)
+        {
+            spdlog::error("Intro Skip: Pattern scan failed.");
+        }
+    }
+    */
+}
+
+void Resolution()
+{
+    // Current Resolution
+    uint8_t* CurrentResolutionScanResult = Memory::PatternScan(baseModule, "4C ?? ?? ?? ?? ?? ?? ?? 8B ?? 48 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? 8D ?? ?? C1 ?? 04");
+    if (CurrentResolutionScanResult) {
+        spdlog::info("Current Resolution: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)CurrentResolutionScanResult - (uintptr_t)baseModule);
+
+        static SafetyHookMid CurrentResolutionMidHook{};
+        CurrentResolutionMidHook = safetyhook::create_mid(CurrentResolutionScanResult,
+            [](SafetyHookContext& ctx) {
+                int iResX = (int)ctx.rax;
+                int iResY = (int)ctx.rdx;
+
+                if (iResX != iCurrentResX || iResY != iCurrentResY) {
+                    iCurrentResX = iResX;
+                    iCurrentResY = iResY;
+                    CalculateAspectRatio(true);
+                }
+            });
+    }
+    else if (!CurrentResolutionScanResult) {
+        spdlog::error("Current Resolution: Pattern scan failed.");
+    }
+
+    if (bFixResolution) {
+        // Fix resolution
+        uint8_t* ResolutionFixScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? 89 ?? ?? ?? ?? ?? C5 ?? ?? ?? 89 ?? ?? ?? ?? ?? 85 ?? 7E ??");
+        if (ResolutionFixScanResult) {
+            spdlog::info("Resolution Fix: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ResolutionFixScanResult - (uintptr_t)baseModule);
+
+            static SafetyHookMid ResolutionFixMidHook{};
+            ResolutionFixMidHook = safetyhook::create_mid(ResolutionFixScanResult,
+                [](SafetyHookContext& ctx) {
+                    ctx.xmm7.f32[0] = (float)iCurrentResX;
+                    ctx.xmm6.f32[0] = (float)iCurrentResY;
+                });
+        }
+        else if (!ResolutionFixScanResult) {
+            spdlog::error("Resolution Fix: Pattern scan failed.");
+        }
+    }
+}
+
+void HUD() 
+{
+    // HUD Size
+    uint8_t* HUDWidthScanResult = Memory::PatternScan(baseModule, "F3 0F ?? ?? ?? ?? ?? ?? E8 ?? ?? ?? ?? F3 0F ?? ?? 66 0F ?? ?? 0F ?? ?? F3 0F ?? ??");
+    if (HUDWidthScanResult) {
+        spdlog::info("HUD: Size: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)HUDWidthScanResult - (uintptr_t)baseModule);
+
+        static SafetyHookMid HUDWidthMidHook{};
+        HUDWidthMidHook = safetyhook::create_mid(HUDWidthScanResult + 0xD,
+            [](SafetyHookContext& ctx) {
+                if (fAspectRatio > fNativeAspect)
+                    ctx.xmm6.f32[0] = (float)iCurrentResX / (2160.00f * fAspectRatio);
+            });
+
+        static SafetyHookMid HUDHeightMidHook{};
+        HUDHeightMidHook = safetyhook::create_mid(HUDWidthScanResult + 0x24,
+            [](SafetyHookContext& ctx) {
+                if (fAspectRatio < fNativeAspect)
+                    ctx.xmm0.f32[0] = (float)iCurrentResY / (3840.00f / fAspectRatio);
+            });
+    }
+    else if (!HUDWidthScanResult) {
+        spdlog::error("HUD: Size: Pattern scan failed.");
+    }
+
+    // HUD Offset 
+    uint8_t* HUDOffsetScanResult = Memory::PatternScan(baseModule, "F2 41 ?? ?? ?? ?? ?? ?? ?? 4C ?? ?? ?? ?? ?? ?? 0F 28 ?? ?? ?? ?? ?? 48 8D ?? ?? ?? ?? ??");
+    if (HUDOffsetScanResult) {
+        spdlog::info("HUD: Offset: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)HUDOffsetScanResult - (uintptr_t)baseModule);
+        static char* sElementName = 0x0;
+        static SafetyHookMid HUDOffsetMidHook{};
+        HUDOffsetMidHook = safetyhook::create_mid(HUDOffsetScanResult + 0x9,
+            [](SafetyHookContext& ctx) {
+                if (ctx.xmm2.f32[0] == 0.00f) {
+                    if (fAspectRatio > fNativeAspect) {
+                        ctx.xmm2.f32[0] = ((2160.00f * fAspectRatio) - 3840.00f) / 2.00f;
+                    }      
+                }
+            });
+    }
+    else if (!HUDOffsetScanResult) {
+        spdlog::error("HUD: Offset: Pattern scan failed.");
+    }
+
+    // Mouse
+    uint8_t* MouseHorScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? 48 8B ?? ?? ?? C5 ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ??");
+    uint8_t* MouseVertScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? 48 ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ??");
+    if (MouseHorScanResult && MouseVertScanResult) {
+        spdlog::info("HUD: Mouse: Horizontal: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)MouseHorScanResult - (uintptr_t)baseModule);
+
+        static SafetyHookMid MouseHorMidHook{};
+        MouseHorMidHook = safetyhook::create_mid(MouseHorScanResult,
+            [](SafetyHookContext& ctx) {
+                if (fAspectRatio > fNativeAspect)
+                    ctx.rax = (int)std::round(fHUDWidth);
+            });
+
+        spdlog::info("HUD: Mouse: Vertical: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)MouseHorScanResult - (uintptr_t)baseModule);
+        static SafetyHookMid MouseVertMidHook{};
+        MouseVertMidHook = safetyhook::create_mid(MouseVertScanResult,
+            [](SafetyHookContext& ctx) {
+                if (fAspectRatio < fNativeAspect)
+                    ctx.rax = (int)std::round(fHUDHeight);
+            });
+    }
+    else if (!MouseHorScanResult || !MouseVertScanResult) {
+        spdlog::error("HUD: Mouse: Pattern scan failed.");
+    }
+
+    // Movies
+    uint8_t* MoviesScanResult = Memory::PatternScan(baseModule, "F2 41 ?? ?? ?? ?? ?? ?? ?? 4C ?? ?? ?? ?? ?? ?? 0F 28 ?? ?? ?? ?? ?? 48 8D ?? ?? ?? ?? ??");
+    if (MoviesScanResult) {
+        spdlog::info("HUD: Movies: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)MoviesScanResult - (uintptr_t)baseModule);
+        static SafetyHookMid MoviesMidHook{};
+        MoviesMidHook = safetyhook::create_mid(MoviesScanResult,
+            [](SafetyHookContext& ctx) {
+                if (ctx.rsp + 0x30) {
+                    if (fAspectRatio > fNativeAspect) {
+                        *reinterpret_cast<float*>(ctx.rsp + 0x30) = fHUDWidthOffset;
+                        *reinterpret_cast<float*>(ctx.rsp + 0x38) = fHUDWidth;
+                    }
+                    else if (fAspectRatio < fNativeAspect) {
+                        *reinterpret_cast<float*>(ctx.rsp + 0x34) = fHUDHeightOffset;
+                        *reinterpret_cast<float*>(ctx.rsp + 0x3C) = fHUDHeight;
+                    }
+                }
+            });
+    }
+    else if (!MoviesScanResult) {
+        spdlog::error("HUD: Movies: Pattern scan failed.");
+    }
+}
+
+// New window proc
+HWND hWnd;
+WNDPROC OldWndProc;
+LRESULT __stdcall NewWndProc(HWND window, UINT message_type, WPARAM w_param, LPARAM l_param) 
+{
+    switch (message_type) {
+
+    case WM_ACTIVATE:
+    case WM_ACTIVATEAPP:
+        if (w_param == WA_INACTIVE) {
+            return 0;
+        }
+
+    default:
+        return CallWindowProc(OldWndProc, window, message_type, w_param, l_param);
+    }
+
+    return CallWindowProc(OldWndProc, window, message_type, w_param, l_param);
+};
+
+void WindowFocus()
+{
+    // TODO: WM_CLOSE for alt+f4 handler.
+    bPauseOnFocusLoss = true;
+    if (!bPauseOnFocusLoss)
+    {
+        int i = 0;
+        while (i < 30 && !IsWindow(hWnd))
+        {
+            // Wait 1 sec then try again
+            Sleep(1000);
+            i++;
+            hWnd = FindWindowW(sWindowClassName, nullptr);
+        }
+
+        // If 30 seconds have passed and we still dont have the handle, give up
+        if (i == 30)
+        {
+            spdlog::error("Window Focus: Failed to find window handle.");
+            return;
+        }
+        else
+        {
+            OldWndProc = (WNDPROC)SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)NewWndProc);
+            spdlog::info("Window Focus: Set new WndProc.");
+        }
+    }
+}
+
+DWORD __stdcall Main(void*)
+{
+    Logging();
+    IntroSkip();
+    Configuration();
+    Resolution();
+    HUD();
+    WindowFocus();
+    return true;
+}
+
+BOOL APIENTRY DllMain(HMODULE hModule,
+    DWORD  ul_reason_for_call,
+    LPVOID lpReserved
+    )
+{
+    switch (ul_reason_for_call)
+    {
+    case DLL_PROCESS_ATTACH:
+    {
+        thisModule = hModule;
+        HANDLE mainHandle = CreateThread(NULL, 0, Main, 0, CREATE_SUSPENDED, 0);
+        if (mainHandle)
+        {
+            SetThreadPriority(mainHandle, THREAD_PRIORITY_TIME_CRITICAL);
+            ResumeThread(mainHandle);
+            CloseHandle(mainHandle);
+        }
+        break;
+    }
+    case DLL_THREAD_ATTACH:
+    case DLL_THREAD_DETACH:
+    case DLL_PROCESS_DETACH:
+        break;
+    }
+    return TRUE;
+}
