@@ -323,6 +323,9 @@ void HUD()
                         if (fAspectRatio > fNativeAspect) {
                             ctx.xmm2.f32[0] = ((2160.00f * fAspectRatio) - 3840.00f) / 2.00f;
                         }
+                        else if (fAspectRatio < fNativeAspect) {
+                            ctx.xmm2.f32[1] = ((3840.00f / fAspectRatio) - 2160.00f) / 2.00f;
+                        }
                     }
                 });
         }
