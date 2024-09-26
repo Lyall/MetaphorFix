@@ -28,6 +28,7 @@ std::pair DesktopDimensions = { 0,0 };
 // Ini variables
 bool bFixResolution;
 bool bFixHUD;
+bool bFixMovies;
 bool bIntroSkip;
 bool bPauseOnFocusLoss;
 
@@ -194,7 +195,8 @@ void Configuration()
     spdlog::info("Config Parse: bFixResolution: {}", bFixResolution);
     inipp::get_value(ini.sections["Fix HUD"], "Enabled", bFixHUD);
     spdlog::info("Config Parse: bFixHUD: {}", bFixHUD);
-    
+    inipp::get_value(ini.sections["Fix Movies"], "Enabled", bFixMovies);
+    spdlog::info("Config Parse: bFixMovies: {}", bFixMovies);
     /*inipp::get_value(ini.sections["Intro Skip"], "Enabled", bIntroSkip);
     spdlog::info("Config Parse: bIntroSkip: {}", bIntroSkip);
     inipp::get_value(ini.sections["Pause On Focus Loss"], "Enabled", bPauseOnFocusLoss);
@@ -285,94 +287,98 @@ void Resolution()
 
 void HUD() 
 {
-    // HUD Size
-    uint8_t* HUDWidthScanResult = Memory::PatternScan(baseModule, "F3 0F ?? ?? ?? ?? ?? ?? E8 ?? ?? ?? ?? F3 0F ?? ?? 66 0F ?? ?? 0F ?? ?? F3 0F ?? ??");
-    if (HUDWidthScanResult) {
-        spdlog::info("HUD: Size: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)HUDWidthScanResult - (uintptr_t)baseModule);
+    if (bFixHUD) {
+        // HUD Size
+        uint8_t* HUDWidthScanResult = Memory::PatternScan(baseModule, "F3 0F ?? ?? ?? ?? ?? ?? E8 ?? ?? ?? ?? F3 0F ?? ?? 66 0F ?? ?? 0F ?? ?? F3 0F ?? ??");
+        if (HUDWidthScanResult) {
+            spdlog::info("HUD: Size: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)HUDWidthScanResult - (uintptr_t)baseModule);
 
-        static SafetyHookMid HUDWidthMidHook{};
-        HUDWidthMidHook = safetyhook::create_mid(HUDWidthScanResult + 0xD,
-            [](SafetyHookContext& ctx) {
-                if (fAspectRatio > fNativeAspect)
-                    ctx.xmm6.f32[0] = (float)iCurrentResX / (2160.00f * fAspectRatio);
-            });
+            static SafetyHookMid HUDWidthMidHook{};
+            HUDWidthMidHook = safetyhook::create_mid(HUDWidthScanResult + 0xD,
+                [](SafetyHookContext& ctx) {
+                    if (fAspectRatio > fNativeAspect)
+                        ctx.xmm6.f32[0] = (float)iCurrentResX / (2160.00f * fAspectRatio);
+                });
 
-        static SafetyHookMid HUDHeightMidHook{};
-        HUDHeightMidHook = safetyhook::create_mid(HUDWidthScanResult + 0x24,
-            [](SafetyHookContext& ctx) {
-                if (fAspectRatio < fNativeAspect)
-                    ctx.xmm0.f32[0] = (float)iCurrentResY / (3840.00f / fAspectRatio);
-            });
-    }
-    else if (!HUDWidthScanResult) {
-        spdlog::error("HUD: Size: Pattern scan failed.");
-    }
+            static SafetyHookMid HUDHeightMidHook{};
+            HUDHeightMidHook = safetyhook::create_mid(HUDWidthScanResult + 0x24,
+                [](SafetyHookContext& ctx) {
+                    if (fAspectRatio < fNativeAspect)
+                        ctx.xmm0.f32[0] = (float)iCurrentResY / (3840.00f / fAspectRatio);
+                });
+        }
+        else if (!HUDWidthScanResult) {
+            spdlog::error("HUD: Size: Pattern scan failed.");
+        }
 
-    // HUD Offset 
-    uint8_t* HUDOffsetScanResult = Memory::PatternScan(baseModule, "F2 41 ?? ?? ?? ?? ?? ?? ?? 4C ?? ?? ?? ?? ?? ?? 0F 28 ?? ?? ?? ?? ?? 48 8D ?? ?? ?? ?? ??");
-    if (HUDOffsetScanResult) {
-        spdlog::info("HUD: Offset: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)HUDOffsetScanResult - (uintptr_t)baseModule);
-        static char* sElementName = 0x0;
-        static SafetyHookMid HUDOffsetMidHook{};
-        HUDOffsetMidHook = safetyhook::create_mid(HUDOffsetScanResult + 0x9,
-            [](SafetyHookContext& ctx) {
-                if (ctx.xmm2.f32[0] == 0.00f) {
-                    if (fAspectRatio > fNativeAspect) {
-                        ctx.xmm2.f32[0] = ((2160.00f * fAspectRatio) - 3840.00f) / 2.00f;
-                    }      
-                }
-            });
-    }
-    else if (!HUDOffsetScanResult) {
-        spdlog::error("HUD: Offset: Pattern scan failed.");
-    }
-
-    // Mouse
-    uint8_t* MouseHorScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? 48 8B ?? ?? ?? C5 ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ??");
-    uint8_t* MouseVertScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? 48 ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ??");
-    if (MouseHorScanResult && MouseVertScanResult) {
-        spdlog::info("HUD: Mouse: Horizontal: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)MouseHorScanResult - (uintptr_t)baseModule);
-
-        static SafetyHookMid MouseHorMidHook{};
-        MouseHorMidHook = safetyhook::create_mid(MouseHorScanResult,
-            [](SafetyHookContext& ctx) {
-                if (fAspectRatio > fNativeAspect)
-                    ctx.rax = (int)std::round(fHUDWidth);
-            });
-
-        spdlog::info("HUD: Mouse: Vertical: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)MouseHorScanResult - (uintptr_t)baseModule);
-        static SafetyHookMid MouseVertMidHook{};
-        MouseVertMidHook = safetyhook::create_mid(MouseVertScanResult,
-            [](SafetyHookContext& ctx) {
-                if (fAspectRatio < fNativeAspect)
-                    ctx.rax = (int)std::round(fHUDHeight);
-            });
-    }
-    else if (!MouseHorScanResult || !MouseVertScanResult) {
-        spdlog::error("HUD: Mouse: Pattern scan failed.");
-    }
-
-    // Movies
-    uint8_t* MoviesScanResult = Memory::PatternScan(baseModule, "F2 41 ?? ?? ?? ?? ?? ?? ?? 4C ?? ?? ?? ?? ?? ?? 0F 28 ?? ?? ?? ?? ?? 48 8D ?? ?? ?? ?? ??");
-    if (MoviesScanResult) {
-        spdlog::info("HUD: Movies: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)MoviesScanResult - (uintptr_t)baseModule);
-        static SafetyHookMid MoviesMidHook{};
-        MoviesMidHook = safetyhook::create_mid(MoviesScanResult,
-            [](SafetyHookContext& ctx) {
-                if (ctx.rsp + 0x30) {
-                    if (fAspectRatio > fNativeAspect) {
-                        *reinterpret_cast<float*>(ctx.rsp + 0x30) = fHUDWidthOffset;
-                        *reinterpret_cast<float*>(ctx.rsp + 0x38) = fHUDWidth;
+        // HUD Offset 
+        uint8_t* HUDOffsetScanResult = Memory::PatternScan(baseModule, "F2 41 ?? ?? ?? ?? ?? ?? ?? 4C ?? ?? ?? ?? ?? ?? 0F 28 ?? ?? ?? ?? ?? 48 8D ?? ?? ?? ?? ??");
+        if (HUDOffsetScanResult) {
+            spdlog::info("HUD: Offset: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)HUDOffsetScanResult - (uintptr_t)baseModule);
+            static char* sElementName = 0x0;
+            static SafetyHookMid HUDOffsetMidHook{};
+            HUDOffsetMidHook = safetyhook::create_mid(HUDOffsetScanResult + 0x9,
+                [](SafetyHookContext& ctx) {
+                    if (ctx.xmm2.f32[0] == 0.00f) {
+                        if (fAspectRatio > fNativeAspect) {
+                            ctx.xmm2.f32[0] = ((2160.00f * fAspectRatio) - 3840.00f) / 2.00f;
+                        }
                     }
-                    else if (fAspectRatio < fNativeAspect) {
-                        *reinterpret_cast<float*>(ctx.rsp + 0x34) = fHUDHeightOffset;
-                        *reinterpret_cast<float*>(ctx.rsp + 0x3C) = fHUDHeight;
-                    }
-                }
-            });
+                });
+        }
+        else if (!HUDOffsetScanResult) {
+            spdlog::error("HUD: Offset: Pattern scan failed.");
+        }
+
+        // Mouse
+        uint8_t* MouseHorScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? 48 8B ?? ?? ?? C5 ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ??");
+        uint8_t* MouseVertScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? 48 ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ??");
+        if (MouseHorScanResult && MouseVertScanResult) {
+            spdlog::info("HUD: Mouse: Horizontal: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)MouseHorScanResult - (uintptr_t)baseModule);
+
+            static SafetyHookMid MouseHorMidHook{};
+            MouseHorMidHook = safetyhook::create_mid(MouseHorScanResult,
+                [](SafetyHookContext& ctx) {
+                    if (fAspectRatio > fNativeAspect)
+                        ctx.rax = (int)std::round(fHUDWidth);
+                });
+
+            spdlog::info("HUD: Mouse: Vertical: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)MouseHorScanResult - (uintptr_t)baseModule);
+            static SafetyHookMid MouseVertMidHook{};
+            MouseVertMidHook = safetyhook::create_mid(MouseVertScanResult,
+                [](SafetyHookContext& ctx) {
+                    if (fAspectRatio < fNativeAspect)
+                        ctx.rax = (int)std::round(fHUDHeight);
+                });
+        }
+        else if (!MouseHorScanResult || !MouseVertScanResult) {
+            spdlog::error("HUD: Mouse: Pattern scan failed.");
+        }
     }
-    else if (!MoviesScanResult) {
-        spdlog::error("HUD: Movies: Pattern scan failed.");
+
+    if (bFixMovies) {
+        // Movies
+        uint8_t* MoviesScanResult = Memory::PatternScan(baseModule, "8B ?? ?? 48 ?? ?? ?? 48 ?? ?? ?? ?? 4C ?? ?? ?? ?? 4C ?? ?? ?? ?? F3 0F ?? ?? ?? ?? E8 ?? ?? ?? ??");
+        if (MoviesScanResult) {
+            spdlog::info("HUD: Movies: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)MoviesScanResult - (uintptr_t)baseModule);
+            static SafetyHookMid MoviesMidHook{};
+            MoviesMidHook = safetyhook::create_mid(MoviesScanResult,
+                [](SafetyHookContext& ctx) {
+                    if (ctx.rsp + 0x30) {
+                        if (fAspectRatio > fNativeAspect) {
+                            *reinterpret_cast<float*>(ctx.rsp + 0x30) = fHUDWidthOffset;
+                            *reinterpret_cast<float*>(ctx.rsp + 0x38) = fHUDWidth;
+                        }
+                        else if (fAspectRatio < fNativeAspect) {
+                            *reinterpret_cast<float*>(ctx.rsp + 0x34) = fHUDHeightOffset;
+                            *reinterpret_cast<float*>(ctx.rsp + 0x3C) = fHUDHeight;
+                        }
+                    }
+                });
+        }
+        else if (!MoviesScanResult) {
+            spdlog::error("HUD: Movies: Pattern scan failed.");
+        }
     }
 }
 
