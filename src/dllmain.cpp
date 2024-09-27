@@ -197,10 +197,10 @@ void Configuration()
     spdlog::info("Config Parse: bFixHUD: {}", bFixHUD);
     inipp::get_value(ini.sections["Fix Movies"], "Enabled", bFixMovies);
     spdlog::info("Config Parse: bFixMovies: {}", bFixMovies);
-    /*inipp::get_value(ini.sections["Intro Skip"], "Enabled", bIntroSkip);
-    spdlog::info("Config Parse: bIntroSkip: {}", bIntroSkip);
     inipp::get_value(ini.sections["Pause On Focus Loss"], "Enabled", bPauseOnFocusLoss);
-    spdlog::info("Config Parse: bPauseOnFocusLoss: {}", bPauseOnFocusLoss);*/
+    spdlog::info("Config Parse: bPauseOnFocusLoss: {}", bPauseOnFocusLoss);
+    /*inipp::get_value(ini.sections["Intro Skip"], "Enabled", bIntroSkip);
+    spdlog::info("Config Parse: bIntroSkip: {}", bIntroSkip);*/
 
     spdlog::info("----------");
 
@@ -337,17 +337,18 @@ void HUD()
         else if (!FadesScanResult) {
             spdlog::error("HUD: Fades: Pattern scan failed.");
         }
-
-        /*
+     
         // HUD Offset 
         uint8_t* HUDOffsetScanResult = Memory::PatternScan(baseModule, "F2 41 ?? ?? ?? ?? ?? ?? ?? 4C ?? ?? ?? ?? ?? ?? 0F 28 ?? ?? ?? ?? ?? 48 8D ?? ?? ?? ?? ??");
         if (HUDOffsetScanResult) {
             spdlog::info("HUD: Offset: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)HUDOffsetScanResult - (uintptr_t)baseModule);
+
             static char* sElementName = 0x0;
             static SafetyHookMid HUDOffsetMidHook{};
             HUDOffsetMidHook = safetyhook::create_mid(HUDOffsetScanResult + 0x9,
                 [](SafetyHookContext& ctx) {
-                    if (ctx.xmm2.f32[0] == 0.00f) {
+                    sElementName = (char*)ctx.r14 + 0x10;
+                    if (ctx.xmm2.f32[0] == 0.00f && strcmp(sElementName, "camp_system") == 0) {
                         if (fAspectRatio > fNativeAspect) {
                             ctx.xmm2.f32[0] = ((2160.00f * fAspectRatio) - 3840.00f) / 2.00f;
                         }
@@ -360,8 +361,7 @@ void HUD()
         else if (!HUDOffsetScanResult) {
             spdlog::error("HUD: Offset: Pattern scan failed.");
         }
-        */
-
+        
         // Mouse
         uint8_t* MouseHorScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? 48 8B ?? ?? ?? C5 ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ??");
         uint8_t* MouseVertScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? 48 ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ??");
@@ -376,6 +376,7 @@ void HUD()
                 });
 
             spdlog::info("HUD: Mouse: Vertical: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)MouseHorScanResult - (uintptr_t)baseModule);
+
             static SafetyHookMid MouseVertMidHook{};
             MouseVertMidHook = safetyhook::create_mid(MouseVertScanResult,
                 [](SafetyHookContext& ctx) {
@@ -394,6 +395,7 @@ void HUD()
         uint8_t* MoviesScanResult = Memory::PatternScan(baseModule, "8B ?? ?? 48 ?? ?? ?? 48 ?? ?? ?? ?? 4C ?? ?? ?? ?? 4C ?? ?? ?? ?? F3 0F ?? ?? ?? ?? E8 ?? ?? ?? ??");
         if (MoviesScanResult) {
             spdlog::info("HUD: Movies: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)MoviesScanResult - (uintptr_t)baseModule);
+
             static SafetyHookMid MoviesMidHook{};
             MoviesMidHook = safetyhook::create_mid(MoviesScanResult,
                 [](SafetyHookContext& ctx) {
@@ -415,7 +417,6 @@ void HUD()
     }
 }
 
-// New window proc
 HWND hWnd;
 WNDPROC OldWndProc;
 LRESULT __stdcall NewWndProc(HWND window, UINT message_type, WPARAM w_param, LPARAM l_param) 
@@ -423,13 +424,19 @@ LRESULT __stdcall NewWndProc(HWND window, UINT message_type, WPARAM w_param, LPA
     switch (message_type) {
 
     case WM_ACTIVATE:
+
     case WM_ACTIVATEAPP:
-        if (w_param == WA_INACTIVE) {
+        if (w_param == WA_INACTIVE && !bPauseOnFocusLoss) {
             return 0;
         }
+        break;
+
+    case WM_CLOSE:
+        // Kill ALT+F4 handler.
+        return DefWindowProcW(window, message_type, w_param, l_param);
 
     default:
-        return CallWindowProc(OldWndProc, window, message_type, w_param, l_param);
+        break;
     }
 
     return CallWindowProc(OldWndProc, window, message_type, w_param, l_param);
@@ -437,31 +444,35 @@ LRESULT __stdcall NewWndProc(HWND window, UINT message_type, WPARAM w_param, LPA
 
 void WindowFocus()
 {
-    // TODO: WM_CLOSE for alt+f4 handler.
-    bPauseOnFocusLoss = true;
-    if (!bPauseOnFocusLoss)
+    int i = 0;
+    while (i < 30 && !IsWindow(hWnd))
     {
-        int i = 0;
-        while (i < 30 && !IsWindow(hWnd))
-        {
-            // Wait 1 sec then try again
-            Sleep(1000);
-            i++;
-            hWnd = FindWindowW(sWindowClassName, nullptr);
-        }
+        // Wait 1 sec then try again
+        Sleep(1000);
+        i++;
+        hWnd = FindWindowW(sWindowClassName, nullptr);
+    }
 
-        // If 30 seconds have passed and we still dont have the handle, give up
-        if (i == 30)
+    // If 30 seconds have passed and we still don't have the handle, give up
+    if (i == 30)
+    {
+        spdlog::error("Window Focus: Failed to find window handle.");
+        return;
+    }
+    else
+    {
+        OldWndProc = (WNDPROC)SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)NewWndProc);
+
+        // Check if SetWindowLongPtr failed
+        if (OldWndProc == nullptr)
         {
-            spdlog::error("Window Focus: Failed to find window handle.");
+            spdlog::error("Window Focus: Failed to set new WndProc.");
             return;
         }
-        else
-        {
-            OldWndProc = (WNDPROC)SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)NewWndProc);
+        else {
             spdlog::info("Window Focus: Set new WndProc.");
         }
-    }
+    }   
 }
 
 DWORD __stdcall Main(void*)
