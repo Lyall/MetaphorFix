@@ -238,12 +238,21 @@ void IntroSkip()
                     int iTitleState = (int)ctx.rax;
 
                     // Title States
+                    // 0x11 - 0x1E = OOBE
+                    // 0x1F = Autosave dialog
+                    // 0x21 = Unauthorized reproduction warning
                     // 0x2A = Atlus logo
                     // 0x2B = Studio Zero logo
                     // 0x31 = Middleware logo
                     // 0x36 = Opening movie
                     // 0x3A = Demo message
                     // 0x3F = Main menu
+
+                    // Check if at autosave dialog
+                    if (iTitleState == 0x1F) {
+                        // Skip to pre-Atlus logo
+                        ctx.rax = 0x27;
+                    }
 
                     // Check if at Atlus logo
                     if (iTitleState == 0x2A) {            
