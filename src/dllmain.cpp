@@ -31,6 +31,7 @@ bool bFixHUD;
 bool bFixMovies;
 bool bIntroSkip;
 bool bPauseOnFocusLoss;
+bool bCatchAltF4;
 
 // Aspect ratio + HUD stuff
 float fPi = (float)3.141592653;
@@ -197,8 +198,11 @@ void Configuration()
     spdlog::info("Config Parse: bFixHUD: {}", bFixHUD);
     inipp::get_value(ini.sections["Fix Movies"], "Enabled", bFixMovies);
     spdlog::info("Config Parse: bFixMovies: {}", bFixMovies);
-    inipp::get_value(ini.sections["Pause On Focus Loss"], "Enabled", bPauseOnFocusLoss);
+    inipp::get_value(ini.sections["Game Window"], "PauseOnFocusLoss", bPauseOnFocusLoss);
     spdlog::info("Config Parse: bPauseOnFocusLoss: {}", bPauseOnFocusLoss);
+    inipp::get_value(ini.sections["Game Window"], "CatchAltF4", bCatchAltF4);
+    spdlog::info("Config Parse: bCatchAltF4: {}", bCatchAltF4);
+
     /*inipp::get_value(ini.sections["Intro Skip"], "Enabled", bIntroSkip);
     spdlog::info("Config Parse: bIntroSkip: {}", bIntroSkip);*/
 
@@ -344,12 +348,20 @@ void HUD()
             spdlog::info("HUD: Offset: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)HUDOffsetScanResult - (uintptr_t)baseModule);
 
             static char* sElementName = 0x0;
+            static char* sOldElementName = (char*)"old";
+
             static SafetyHookMid HUDOffsetMidHook{};
             HUDOffsetMidHook = safetyhook::create_mid(HUDOffsetScanResult + 0x9,
                 [](SafetyHookContext& ctx) {
                     sElementName = (char*)ctx.r14 + 0x10;
-                    if (ctx.xmm2.f32[0] == 0.00f && strcmp(sElementName, "camp_system") == 0) {
+                    if (strcmp(sOldElementName, sElementName) != 0) {
+                        sOldElementName = sElementName;
+                        spdlog::info("sElementName = {:s}", sElementName);
+                    }
+
+                    if (ctx.xmm2.f32[0] == 0.00f && strcmp(sElementName, "camp_system") != 0 && strcmp(sElementName, "title_menu") != 0) {
                         if (fAspectRatio > fNativeAspect) {
+                            *reinterpret_cast<float*>(ctx.r14 + 0xB74) = ((2160.00f * fAspectRatio) - 3840.00f) / 2.00f;
                             ctx.xmm2.f32[0] = ((2160.00f * fAspectRatio) - 3840.00f) / 2.00f;
                         }
                         else if (fAspectRatio < fNativeAspect) {
@@ -427,13 +439,17 @@ LRESULT __stdcall NewWndProc(HWND window, UINT message_type, WPARAM w_param, LPA
 
     case WM_ACTIVATEAPP:
         if (w_param == WA_INACTIVE && !bPauseOnFocusLoss) {
+            // Disable pause on focus loss.
             return 0;
         }
         break;
 
     case WM_CLOSE:
-        // Kill ALT+F4 handler.
-        return DefWindowProcW(window, message_type, w_param, l_param);
+        if (!bCatchAltF4) {
+            // Kill ALT+F4 handler.
+            return DefWindowProcW(window, message_type, w_param, l_param);
+        }
+        break;
 
     default:
         break;
@@ -442,37 +458,35 @@ LRESULT __stdcall NewWndProc(HWND window, UINT message_type, WPARAM w_param, LPA
     return CallWindowProc(OldWndProc, window, message_type, w_param, l_param);
 };
 
-void WindowFocus()
+void WindowManagement()
 {
-    int i = 0;
-    while (i < 30 && !IsWindow(hWnd))
-    {
-        // Wait 1 sec then try again
-        Sleep(1000);
-        i++;
-        hWnd = FindWindowW(sWindowClassName, nullptr);
-    }
+    if (!bPauseOnFocusLoss || !bCatchAltF4) {
+        int i = 0;
+        while (i < 30 && !IsWindow(hWnd)) {
+            // Wait 1 sec then try again
+            Sleep(1000);
+            i++;
+            hWnd = FindWindowW(sWindowClassName, nullptr);
+        }
 
-    // If 30 seconds have passed and we still don't have the handle, give up
-    if (i == 30)
-    {
-        spdlog::error("Window Focus: Failed to find window handle.");
-        return;
-    }
-    else
-    {
-        OldWndProc = (WNDPROC)SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)NewWndProc);
-
-        // Check if SetWindowLongPtr failed
-        if (OldWndProc == nullptr)
-        {
-            spdlog::error("Window Focus: Failed to set new WndProc.");
+        // If 30 seconds have passed and we still don't have the handle, give up
+        if (i == 30) {
+            spdlog::error("Window Focus: Failed to find window handle.");
             return;
         }
         else {
-            spdlog::info("Window Focus: Set new WndProc.");
+            OldWndProc = (WNDPROC)SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)NewWndProc);
+
+            // Check if SetWindowLongPtr failed
+            if (OldWndProc == nullptr) {
+                spdlog::error("Window Focus: Failed to set new WndProc.");
+                return;
+            }
+            else {
+                spdlog::info("Window Focus: Set new WndProc.");
+            }
         }
-    }   
+    }
 }
 
 DWORD __stdcall Main(void*)
@@ -482,7 +496,7 @@ DWORD __stdcall Main(void*)
     Configuration();
     Resolution();
     HUD();
-    WindowFocus();
+    WindowManagement();
     return true;
 }
 
