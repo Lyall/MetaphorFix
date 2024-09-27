@@ -7,7 +7,12 @@ This is a work-in-progress fix for the Metaphor: ReFantazio demo that adds ultra
 ### 🚩Currently this fix only supports the DEMO version.
 
 ## Features
-- Ultrawide/narrower support.
+### General
+- Intro skip.
+- Disable pause when game loses focus.
+
+### Ultrawide/narrower
+- Support for any resolution/aspect ratio.
 - Correctly scaled movies.
 
 ## Installation
