@@ -30,6 +30,7 @@ bool bFixResolution;
 bool bFixHUD;
 bool bFixMovies;
 bool bIntroSkip;
+bool bSkipMovie;
 bool bPauseOnFocusLoss;
 bool bCatchAltF4;
 
@@ -194,17 +195,23 @@ void Configuration()
 
     inipp::get_value(ini.sections["Fix Resolution"], "Enabled", bFixResolution);
     spdlog::info("Config Parse: bFixResolution: {}", bFixResolution);
+
     inipp::get_value(ini.sections["Fix HUD"], "Enabled", bFixHUD);
     spdlog::info("Config Parse: bFixHUD: {}", bFixHUD);
+
     inipp::get_value(ini.sections["Fix Movies"], "Enabled", bFixMovies);
     spdlog::info("Config Parse: bFixMovies: {}", bFixMovies);
+
     inipp::get_value(ini.sections["Game Window"], "PauseOnFocusLoss", bPauseOnFocusLoss);
     spdlog::info("Config Parse: bPauseOnFocusLoss: {}", bPauseOnFocusLoss);
+
     inipp::get_value(ini.sections["Game Window"], "CatchAltF4", bCatchAltF4);
     spdlog::info("Config Parse: bCatchAltF4: {}", bCatchAltF4);
 
-    /*inipp::get_value(ini.sections["Intro Skip"], "Enabled", bIntroSkip);
-    spdlog::info("Config Parse: bIntroSkip: {}", bIntroSkip);*/
+    inipp::get_value(ini.sections["Intro Skip"], "Enabled", bIntroSkip);
+    inipp::get_value(ini.sections["Intro Skip"], "SkipMovie", bSkipMovie);
+    spdlog::info("Config Parse: bIntroSkip: {}", bIntroSkip);
+    spdlog::info("Config Parse: bSkipMovie: {}", bSkipMovie);
 
     spdlog::info("----------");
 
@@ -217,33 +224,44 @@ void Configuration()
 
 void IntroSkip()
 {
-    /*
     if (bIntroSkip)
     {
-        // Skip Intro
-        uint8_t* IntroSkipScanResult = Memory::PatternScan(baseModule, "0F ?? ?? ?? ?? ?? ?? B9 01 00 00 40");
+        // Intro Skip
+        uint8_t* IntroSkipScanResult = Memory::PatternScan(baseModule, "83 ?? 49 0F 87 ?? ?? ?? ?? 48 8D ?? ?? ?? ?? ?? 8B ?? ?? ?? ?? ?? ?? 48 ?? ??");
         if (IntroSkipScanResult)
         {
             spdlog::info("Intro Skip: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)IntroSkipScanResult - (uintptr_t)baseModule);
 
-            // Get address
-            DWORD64 IntroSkipValueAddress = Memory::GetAbsolute((uintptr_t)IntroSkipScanResult + 0x3);
-            spdlog::info("Intro Skip: Value address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)IntroSkipValueAddress - (uintptr_t)baseModule);
+            static SafetyHookMid IntroSkipMidHook{};
+            IntroSkipMidHook = safetyhook::create_mid(IntroSkipScanResult,
+                [](SafetyHookContext& ctx) {
+                    int iTitleState = (int)ctx.rax;
 
-            // Enable network functions
-            Memory::Write(IntroSkipValueAddress, (BYTE)1);
-            spdlog::info("Intro Skip: Attempted to enable network functions.");
+                    // Title States
+                    // 0x2A = Atlus logo
+                    // 0x2B = Studio Zero logo
+                    // 0x31 = Middleware logo
+                    // 0x36 = Opening movie
+                    // 0x3A = Demo message
+                    // 0x3F = Main menu
 
-            // Skip intro
-            Memory::Write(IntroSkipValueAddress - 0x3, (BYTE)1);
-            spdlog::info("Intro Skip: Skipped intro.");
+                    // Check if at Atlus logo
+                    if (iTitleState == 0x2A) {            
+                        // Skip to main menu
+                        ctx.rax = 0x3F;
+
+                        if (!bSkipMovie) {
+                            // Skip to opening movie instead
+                            ctx.rax = 0x36;
+                        }
+                    }    
+                });
         }
         else if (!IntroSkipScanResult)
         {
             spdlog::error("Intro Skip: Pattern scan failed.");
         }
     }
-    */
 }
 
 void Resolution()
@@ -342,6 +360,7 @@ void HUD()
             spdlog::error("HUD: Fades: Pattern scan failed.");
         }
      
+        /*
         // HUD Offset 
         uint8_t* HUDOffsetScanResult = Memory::PatternScan(baseModule, "F2 41 ?? ?? ?? ?? ?? ?? ?? 4C ?? ?? ?? ?? ?? ?? 0F 28 ?? ?? ?? ?? ?? 48 8D ?? ?? ?? ?? ??");
         if (HUDOffsetScanResult) {
@@ -373,7 +392,8 @@ void HUD()
         else if (!HUDOffsetScanResult) {
             spdlog::error("HUD: Offset: Pattern scan failed.");
         }
-        
+        */
+
         // Mouse
         uint8_t* MouseHorScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? 48 8B ?? ?? ?? C5 ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ??");
         uint8_t* MouseVertScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? 48 ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ??");
@@ -436,7 +456,6 @@ LRESULT __stdcall NewWndProc(HWND window, UINT message_type, WPARAM w_param, LPA
     switch (message_type) {
 
     case WM_ACTIVATE:
-
     case WM_ACTIVATEAPP:
         if (w_param == WA_INACTIVE && !bPauseOnFocusLoss) {
             // Disable pause on focus loss.
@@ -492,9 +511,9 @@ void WindowManagement()
 DWORD __stdcall Main(void*)
 {
     Logging();
-    IntroSkip();
     Configuration();
     Resolution();
+    IntroSkip();
     HUD();
     WindowManagement();
     return true;
