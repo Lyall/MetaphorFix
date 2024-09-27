@@ -33,6 +33,7 @@ bool bIntroSkip;
 bool bSkipMovie;
 bool bPauseOnFocusLoss;
 bool bCatchAltF4;
+bool bFixFPSCap;
 
 // Aspect ratio + HUD stuff
 float fPi = (float)3.141592653;
@@ -202,16 +203,18 @@ void Configuration()
     inipp::get_value(ini.sections["Fix Movies"], "Enabled", bFixMovies);
     spdlog::info("Config Parse: bFixMovies: {}", bFixMovies);
 
-    inipp::get_value(ini.sections["Game Window"], "PauseOnFocusLoss", bPauseOnFocusLoss);
-    spdlog::info("Config Parse: bPauseOnFocusLoss: {}", bPauseOnFocusLoss);
-
-    inipp::get_value(ini.sections["Game Window"], "CatchAltF4", bCatchAltF4);
-    spdlog::info("Config Parse: bCatchAltF4: {}", bCatchAltF4);
-
     inipp::get_value(ini.sections["Intro Skip"], "Enabled", bIntroSkip);
     inipp::get_value(ini.sections["Intro Skip"], "SkipMovie", bSkipMovie);
     spdlog::info("Config Parse: bIntroSkip: {}", bIntroSkip);
     spdlog::info("Config Parse: bSkipMovie: {}", bSkipMovie);
+
+    inipp::get_value(ini.sections["Game Window"], "PauseOnFocusLoss", bPauseOnFocusLoss);
+    inipp::get_value(ini.sections["Game Window"], "CatchAltF4", bCatchAltF4);
+    spdlog::info("Config Parse: bPauseOnFocusLoss: {}", bPauseOnFocusLoss);
+    spdlog::info("Config Parse: bCatchAltF4: {}", bCatchAltF4);
+
+    inipp::get_value(ini.sections["Fix Framerate Cap"], "Enabled", bFixFPSCap);
+    spdlog::info("Config Parse: bFixFPSCap: {}", bFixFPSCap);
 
     spdlog::info("----------");
 
@@ -458,6 +461,26 @@ void HUD()
     }
 }
 
+void Performance() 
+{
+    if (bFixFPSCap) {
+        // Fix framerate cap not being applied
+        uint8_t* FramerateCapScanResult = Memory::PatternScan(baseModule, "89 ?? ?? ?? ?? ?? 8B ?? C7 ?? ?? ?? ?? ?? ?? ?? 85 ?? 75 ?? 48 ?? ?? ?? ?? ?? ?? 00");
+        if (FramerateCapScanResult) {
+            spdlog::info("Framerate Cap: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)FramerateCapScanResult - (uintptr_t)baseModule);
+
+            static SafetyHookMid FramerateCapMidHook{};
+            FramerateCapMidHook = safetyhook::create_mid(FramerateCapScanResult,
+                [](SafetyHookContext& ctx) {
+                    ctx.rcx = 0;
+                });
+        }
+        else if (!FramerateCapScanResult) {
+            spdlog::error("Framerate Cap: Pattern scan failed.");
+        }
+    }
+}
+
 HWND hWnd;
 WNDPROC OldWndProc;
 LRESULT __stdcall NewWndProc(HWND window, UINT message_type, WPARAM w_param, LPARAM l_param) 
@@ -524,6 +547,7 @@ DWORD __stdcall Main(void*)
     Resolution();
     IntroSkip();
     HUD();
+    Performance();
     WindowManagement();
     return true;
 }
