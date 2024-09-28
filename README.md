@@ -11,6 +11,8 @@ This is a work-in-progress fix for the Metaphor: ReFantazio demo that adds ultra
 - Intro skip.
 - Disable pause when game loses focus.
 - Disable ALT+F4/exit handler.
+- Disable dash blur + speed lines.
+- Remove 60fps cap in menus.
 
 ### Ultrawide/narrower
 - Support for any resolution/aspect ratio.
