@@ -2,7 +2,7 @@
 [![Patreon-Button](https://github.com/user-attachments/assets/0468283d-b663-4820-b0f5-40e41d96832c)](https://www.patreon.com/Wintermance) [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/W7W01UAI9) <br />
 [![Github All Releases](https://img.shields.io/github/downloads/Lyall/MetaphorFix/total.svg)](https://github.com/Lyall/MetaphorFix/releases)
 
-This is a work-in-progress fix for the Metaphor: ReFantazio demo that adds ultrawide/narrower support.
+This is a work-in-progress fix for the Metaphor: ReFantazio demo that adds ultrawide/narrower support and more.
 
 ### 🚩Currently this fix only supports the DEMO version.
 
@@ -10,6 +10,7 @@ This is a work-in-progress fix for the Metaphor: ReFantazio demo that adds ultra
 ### General
 - Intro skip.
 - Disable pause when game loses focus.
+- Disable ALT+F4/exit handler.
 
 ### Ultrawide/narrower
 - Support for any resolution/aspect ratio.
@@ -23,11 +24,11 @@ This is a work-in-progress fix for the Metaphor: ReFantazio demo that adds ultra
 🚩**You do not need to do this if you are using Windows!**
 - Open up the game properties in Steam and add `WINEDLLOVERRIDES="winmm=n,b" %command%` to the launch options.
 
+## Recommended Mods
+- [SpecialK](https://steamcommunity.com/app/2679460/discussions/0/4842022494093910068/) - I highly recommend using this build of SpecialK with Metaphor: ReFantazio. It can improve performance significantly, along with offering many other useful features like an excellent framerate limiter.
+
 ## Configuration
 - See **MetaphorFix.ini** to adjust settings for the fix.
-
-## Recommended Mods
-- [SpecialK](https://steamcommunity.com/app/2679460/discussions/0/4842022494093910068/) by Kaldaien - I highly recommend using this build of SpecialK with Metaphor: ReFantazio. It can improve performance significantly along with offering many other useful features like an excellent framerate limiter.
 
 ## Known Issues
 Please report any issues you see.
