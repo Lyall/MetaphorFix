@@ -26,6 +26,9 @@ This is a work-in-progress fix for the Metaphor: ReFantazio demo that adds ultra
 ## Configuration
 - See **MetaphorFix.ini** to adjust settings for the fix.
 
+## Recommended Mods
+- [SpecialK](https://steamcommunity.com/app/2679460/discussions/0/4842022494093910068/) by Kaldaien - I highly recommend using this build of SpecialK with Metaphor: ReFantazio. It can improve performance significantly along with offering many other useful features like an excellent framerate limiter.
+
 ## Known Issues
 Please report any issues you see.
 This list will contain bugs which may or may not be fixed.
