@@ -11,7 +11,7 @@ HMODULE thisModule; // Fix DLL
 
 // Version
 std::string sFixName = "MetaphorFix";
-std::string sFixVer = "0.7.2";
+std::string sFixVer = "0.7.3";
 std::string sLogFile = sFixName + ".log";
 
 // Logger
@@ -27,6 +27,7 @@ std::pair DesktopDimensions = { 0,0 };
 
 // Ini variables
 bool bFixResolution;
+bool bFixAspect;
 bool bFixHUD;
 bool bFixMovies;
 bool bIntroSkip;
@@ -198,6 +199,9 @@ void Configuration()
     inipp::get_value(ini.sections["Fix Resolution"], "Enabled", bFixResolution);
     spdlog::info("Config Parse: bFixResolution: {}", bFixResolution);
 
+    inipp::get_value(ini.sections["Fix Aspect Ratio"], "Enabled", bFixAspect);
+    spdlog::info("Config Parse: bFixAspect: {}", bFixAspect);
+
     inipp::get_value(ini.sections["Fix HUD"], "Enabled", bFixHUD);
     spdlog::info("Config Parse: bFixHUD: {}", bFixHUD);
 
@@ -325,22 +329,24 @@ void Resolution()
 
 void AspectRatio()
 {
-    // Aspect ratio
-    uint8_t* AspectRatioScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? C5 ?? ?? ?? ?? C4 ?? ?? ?? ?? C5 ?? ?? ?? 33 ?? C7 ?? ?? ?? ?? ?? 00 00 80 BF");
-    if (AspectRatioScanResult) {
-        spdlog::info("Aspect Ratio: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)AspectRatioScanResult - (uintptr_t)baseModule);
+    if (bFixAspect) {
+        // Aspect ratio
+        uint8_t* AspectRatioScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? C5 ?? ?? ?? ?? C4 ?? ?? ?? ?? C5 ?? ?? ?? 33 ?? C7 ?? ?? ?? ?? ?? 00 00 80 BF");
+        if (AspectRatioScanResult) {
+            spdlog::info("Aspect Ratio: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)AspectRatioScanResult - (uintptr_t)baseModule);
 
-        static SafetyHookMid AspectRatioMidHook{};
-        AspectRatioMidHook = safetyhook::create_mid(AspectRatioScanResult,
-            [](SafetyHookContext& ctx) {
-                if (ctx.rbx + 0x190) {
-                    *reinterpret_cast<float*>(ctx.rbx + 0x190) = fAspectRatio;
-                    ctx.xmm2.f32[0] = fAspectRatio;
-                }
-            });
-    }
-    else if (!AspectRatioScanResult) {
-        spdlog::error("Aspect Ratio: Pattern scan failed.");
+            static SafetyHookMid AspectRatioMidHook{};
+            AspectRatioMidHook = safetyhook::create_mid(AspectRatioScanResult,
+                [](SafetyHookContext& ctx) {
+                    if (ctx.rbx + 0x190) {
+                        *reinterpret_cast<float*>(ctx.rbx + 0x190) = fAspectRatio;
+                        ctx.xmm2.f32[0] = fAspectRatio;
+                    }
+                });
+        }
+        else if (!AspectRatioScanResult) {
+            spdlog::error("Aspect Ratio: Pattern scan failed.");
+        }
     }
 }
 
@@ -494,7 +500,7 @@ void Framerate()
     }
 }
 
-void Misc()
+void Graphics()
 {
     if (bDisableDashBlur) {
         // Disable dash blur + speed lines
@@ -578,7 +584,7 @@ DWORD __stdcall Main(void*)
     AspectRatio();
     HUD();
     Framerate();
-    Misc();
+    Graphics();
     WindowManagement();
     return true;
 }
