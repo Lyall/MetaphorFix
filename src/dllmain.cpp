@@ -319,6 +319,27 @@ void Resolution()
     }
 }
 
+void AspectRatio()
+{
+    // Aspect ratio
+    uint8_t* AspectRatioScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? C5 ?? ?? ?? ?? C4 ?? ?? ?? ?? C5 ?? ?? ?? 33 ?? C7 ?? ?? ?? ?? ?? 00 00 80 BF");
+    if (AspectRatioScanResult) {
+        spdlog::info("Aspect Ratio: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)AspectRatioScanResult - (uintptr_t)baseModule);
+
+        static SafetyHookMid AspectRatioMidHook{};
+        AspectRatioMidHook = safetyhook::create_mid(AspectRatioScanResult,
+            [](SafetyHookContext& ctx) {
+                if (ctx.rbx + 0x190) {
+                    *reinterpret_cast<float*>(ctx.rbx + 0x190) = fAspectRatio;
+                    ctx.xmm2.f32[0] = fAspectRatio;
+                }
+            });
+    }
+    else if (!AspectRatioScanResult) {
+        spdlog::error("Aspect Ratio: Pattern scan failed.");
+    }
+}
+
 void HUD() 
 {
     if (bFixHUD) {
@@ -372,27 +393,16 @@ void HUD()
             spdlog::error("HUD: Fades: Pattern scan failed.");
         }
      
-        /*
         // HUD Offset 
         uint8_t* HUDOffsetScanResult = Memory::PatternScan(baseModule, "F2 41 ?? ?? ?? ?? ?? ?? ?? 4C ?? ?? ?? ?? ?? ?? 0F 28 ?? ?? ?? ?? ?? 48 8D ?? ?? ?? ?? ??");
         if (HUDOffsetScanResult) {
             spdlog::info("HUD: Offset: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)HUDOffsetScanResult - (uintptr_t)baseModule);
 
-            static char* sElementName = 0x0;
-            static char* sOldElementName = (char*)"old";
-
             static SafetyHookMid HUDOffsetMidHook{};
             HUDOffsetMidHook = safetyhook::create_mid(HUDOffsetScanResult + 0x9,
                 [](SafetyHookContext& ctx) {
-                    sElementName = (char*)ctx.r14 + 0x10;
-                    if (strcmp(sOldElementName, sElementName) != 0) {
-                        sOldElementName = sElementName;
-                        spdlog::info("sElementName = {:s}", sElementName);
-                    }
-
-                    if (ctx.xmm2.f32[0] == 0.00f && strcmp(sElementName, "camp_system") != 0 && strcmp(sElementName, "title_menu") != 0) {
+                    if (ctx.xmm2.f32[0] == 0.00f) {
                         if (fAspectRatio > fNativeAspect) {
-                            *reinterpret_cast<float*>(ctx.r14 + 0xB74) = ((2160.00f * fAspectRatio) - 3840.00f) / 2.00f;
                             ctx.xmm2.f32[0] = ((2160.00f * fAspectRatio) - 3840.00f) / 2.00f;
                         }
                         else if (fAspectRatio < fNativeAspect) {
@@ -404,7 +414,6 @@ void HUD()
         else if (!HUDOffsetScanResult) {
             spdlog::error("HUD: Offset: Pattern scan failed.");
         }
-        */
 
         // Mouse
         uint8_t* MouseHorScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? 48 8B ?? ?? ?? C5 ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ??");
@@ -461,10 +470,10 @@ void HUD()
     }
 }
 
-void Performance() 
+void Framerate() 
 {
     if (bFixFPSCap) {
-        // Fix framerate cap not being applied
+        // Fix framerate cap. Stops menus being locked to 60fps with vsync off and other odd behaviour.
         uint8_t* FramerateCapScanResult = Memory::PatternScan(baseModule, "89 ?? ?? ?? ?? ?? 8B ?? C7 ?? ?? ?? ?? ?? ?? ?? 85 ?? 75 ?? 48 ?? ?? ?? ?? ?? ?? 00");
         if (FramerateCapScanResult) {
             spdlog::info("Framerate Cap: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)FramerateCapScanResult - (uintptr_t)baseModule);
@@ -546,8 +555,9 @@ DWORD __stdcall Main(void*)
     Configuration();
     Resolution();
     IntroSkip();
+    AspectRatio();
     HUD();
-    Performance();
+    Framerate();
     WindowManagement();
     return true;
 }
