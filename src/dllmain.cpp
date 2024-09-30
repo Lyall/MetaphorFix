@@ -234,6 +234,67 @@ void Configuration()
     CalculateAspectRatio(true);
 }
 
+WNDPROC OldWndProc;
+LRESULT __stdcall NewWndProc(HWND window, UINT message_type, WPARAM w_param, LPARAM l_param) {
+    switch (message_type) {
+    case WM_ACTIVATE:
+    case WM_ACTIVATEAPP:
+        if (w_param == WA_INACTIVE && !bPauseOnFocusLoss) {
+            // Disable pause on focus loss.
+            return 0;
+        }
+        break;
+    case WM_CLOSE:
+        if (!bCatchAltF4) {
+            // Return default WndProc
+            return DefWindowProc(window, message_type, w_param, l_param);
+        }
+        break;
+    }
+
+    // Return old WndProc
+    return CallWindowProc(OldWndProc, window, message_type, w_param, l_param);
+};
+
+SafetyHookInline SetWindowLongPtrW_sh{};
+LONG_PTR WINAPI SetWindowLongPtrW_hk(HWND hWnd, int nIndex, LONG_PTR dwNewLong) {
+    WCHAR className[256];
+    const LPCWSTR targetClass = L"METAPHOR_WINDOW";
+
+    // Only match game class name
+    if (GetClassNameW(hWnd, className, sizeof(className) / sizeof(WCHAR))) {
+        if (wcscmp(className, targetClass) == 0) {
+            // Set new wnd proc
+            if (OldWndProc == nullptr) {
+                OldWndProc = (WNDPROC)SetWindowLongPtrW_sh.stdcall<LONG_PTR>(hWnd, GWLP_WNDPROC, (LONG_PTR)NewWndProc);
+                spdlog::info("Game Window: Set new WndProc successfully.");
+            }
+        }
+    }
+
+    // Call the original function
+    return SetWindowLongPtrW_sh.stdcall<LONG_PTR>(hWnd, nIndex, dwNewLong);
+}
+
+void WindowManagement()
+{
+    // Hook SetWindowLongPtrW
+    HMODULE user32Module = GetModuleHandleW(L"user32.dll");
+    if (user32Module) {
+        FARPROC SetWindowLongPtrW_fn = GetProcAddress(user32Module, "SetWindowLongPtrW");
+        if (SetWindowLongPtrW_fn) {
+            SetWindowLongPtrW_sh = safetyhook::create_inline(SetWindowLongPtrW_fn, reinterpret_cast<void*>(SetWindowLongPtrW_hk));
+            spdlog::info("Game Window: Hooked SetWindowLongPtrW.");
+        }
+        else {
+            spdlog::error("Game Window: Failed to get function address for SetWindowLongPtrW.");
+        }
+    }
+    else {
+        spdlog::error("Game Window: Failed to get module handle for user32.dll.");
+    }
+}
+
 void IntroSkip()
 {
     if (bIntroSkip)
@@ -507,78 +568,17 @@ void Graphics()
     }
 }
 
-WNDPROC OldWndProc;
-LRESULT __stdcall NewWndProc(HWND window, UINT message_type, WPARAM w_param, LPARAM l_param) {
-    switch (message_type) {
-    case WM_ACTIVATE:
-    case WM_ACTIVATEAPP:
-        if (w_param == WA_INACTIVE && !bPauseOnFocusLoss) {
-            // Disable pause on focus loss.
-            return 0;
-        }
-        break;
-    case WM_CLOSE:
-        if (!bCatchAltF4) {
-            // Return default WndProc
-            return DefWindowProc(window, message_type, w_param, l_param);
-        } 
-        break;
-    }
-
-    // Return old WndProc
-    return CallWindowProc(OldWndProc, window, message_type, w_param, l_param);
-};
-
-SafetyHookInline SetWindowLongPtrW_sh{};
-LONG_PTR WINAPI SetWindowLongPtrW_hk(HWND hWnd, int nIndex, LONG_PTR dwNewLong) {
-    WCHAR className[256];
-    const LPCWSTR targetClass = L"METAPHOR_WINDOW";
-
-    // Only match game class name
-    if (GetClassNameW(hWnd, className, sizeof(className) / sizeof(WCHAR))) {
-        if (wcscmp(className, targetClass) == 0) {
-            // Set new wnd proc
-            if (OldWndProc == nullptr) {
-                OldWndProc = (WNDPROC)SetWindowLongPtrW_sh.stdcall<LONG_PTR>(hWnd, GWLP_WNDPROC, (LONG_PTR)NewWndProc);
-                spdlog::info("Game Window: Set new WndProc successfully.");
-            }
-        }
-    }
-
-    // Call the original function
-    return SetWindowLongPtrW_sh.stdcall<LONG_PTR>(hWnd, nIndex, dwNewLong);
-}
-
-void WindowManagement()
-{
-    // Hook SetWindowLongPtrW
-    HMODULE user32Module = GetModuleHandleW(L"user32.dll");
-    if (user32Module) {
-        FARPROC SetWindowLongPtrW_fn = GetProcAddress(user32Module, "SetWindowLongPtrW");
-        if (SetWindowLongPtrW_fn) {
-            SetWindowLongPtrW_sh = safetyhook::create_inline(SetWindowLongPtrW_fn, reinterpret_cast<void*>(SetWindowLongPtrW_hk));
-            spdlog::info("Game Window: Hooked SetWindowLongPtrW.");
-        }
-        else {
-            spdlog::error("Game Window: Failed to get function address for SetWindowLongPtrW.");
-        }
-    }
-    else {
-        spdlog::error("Game Window: Failed to get module handle for user32.dll.");
-    }
-}
-
 DWORD __stdcall Main(void*)
 {
     Logging();
     Configuration();
+    WindowManagement();
     Resolution();
     IntroSkip();
     AspectRatio();
     HUD();
     Framerate();
     Graphics();
-    WindowManagement();
     return true;
 }
 
