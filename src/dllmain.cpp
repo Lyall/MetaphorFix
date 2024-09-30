@@ -50,7 +50,6 @@ float fHUDHeightOffset;
 // Variables
 int iCurrentResX;
 int iCurrentResY;
-LPCWSTR sWindowClassName = L"METAPHOR_WINDOW";
 
 void CalculateAspectRatio(bool bLog)
 {
@@ -308,23 +307,22 @@ void Resolution()
         spdlog::error("Current Resolution: Pattern scan failed.");
     }
 
-    if (bFixResolution) {
-        // Fix resolution
-        uint8_t* ResolutionFixScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? 89 ?? ?? ?? ?? ?? C5 ?? ?? ?? 89 ?? ?? ?? ?? ?? 85 ?? 7E ??");
-        if (ResolutionFixScanResult) {
-            spdlog::info("Resolution Fix: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ResolutionFixScanResult - (uintptr_t)baseModule);
+    // Fix resolution
+    uint8_t* ResolutionFixScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? 89 ?? ?? ?? ?? ?? C5 ?? ?? ?? 89 ?? ?? ?? ?? ?? 85 ?? 7E ??");
+    if (ResolutionFixScanResult) {
+        spdlog::info("Resolution Fix: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ResolutionFixScanResult - (uintptr_t)baseModule);
 
-            static SafetyHookMid ResolutionFixMidHook{};
-            ResolutionFixMidHook = safetyhook::create_mid(ResolutionFixScanResult,
-                [](SafetyHookContext& ctx) {
-                    ctx.xmm7.f32[0] = (float)iCurrentResX;
-                    ctx.xmm6.f32[0] = (float)iCurrentResY;
-                });
-        }
-        else if (!ResolutionFixScanResult) {
-            spdlog::error("Resolution Fix: Pattern scan failed.");
-        }
+        static SafetyHookMid ResolutionFixMidHook{};
+        ResolutionFixMidHook = safetyhook::create_mid(ResolutionFixScanResult,
+            [](SafetyHookContext& ctx) {
+                ctx.xmm7.f32[0] = (float)iCurrentResX;
+                ctx.xmm6.f32[0] = (float)iCurrentResY;
+            });
     }
+    else if (!ResolutionFixScanResult) {
+        spdlog::error("Resolution Fix: Pattern scan failed.");
+    }
+    
 }
 
 void AspectRatio()
@@ -516,12 +514,9 @@ void Graphics()
     }
 }
 
-HWND hWnd;
 WNDPROC OldWndProc;
-LRESULT __stdcall NewWndProc(HWND window, UINT message_type, WPARAM w_param, LPARAM l_param) 
-{
+LRESULT __stdcall NewWndProc(HWND window, UINT message_type, WPARAM w_param, LPARAM l_param) {
     switch (message_type) {
-
     case WM_ACTIVATE:
     case WM_ACTIVATEAPP:
         if (w_param == WA_INACTIVE && !bPauseOnFocusLoss) {
@@ -529,49 +524,54 @@ LRESULT __stdcall NewWndProc(HWND window, UINT message_type, WPARAM w_param, LPA
             return 0;
         }
         break;
-
     case WM_CLOSE:
         if (!bCatchAltF4) {
-            // Kill ALT+F4 handler.
-            return DefWindowProcW(window, message_type, w_param, l_param);
-        }
-        break;
-
-    default:
+            // Return default WndProc
+            return DefWindowProc(window, message_type, w_param, l_param);
+        } 
         break;
     }
 
+    // Return old WndProc
     return CallWindowProc(OldWndProc, window, message_type, w_param, l_param);
 };
 
+SafetyHookInline SetWindowLongPtrW_sh{};
+LONG_PTR WINAPI SetWindowLongPtrW_hk(HWND hWnd, int nIndex, LONG_PTR dwNewLong) {
+    WCHAR className[256];
+    const LPCWSTR targetClass = L"METAPHOR_WINDOW";
+
+    // Only match game class name
+    if (GetClassNameW(hWnd, className, sizeof(className) / sizeof(WCHAR))) {
+        if (wcscmp(className, targetClass) == 0) {
+            // Set new wnd proc
+            if (OldWndProc == nullptr) {
+                OldWndProc = (WNDPROC)SetWindowLongPtrW_sh.stdcall<LONG_PTR>(hWnd, GWLP_WNDPROC, (LONG_PTR)NewWndProc);
+                spdlog::info("Game Window: Set new WndProc successfully.");
+            }
+        }
+    }
+
+    // Call the original function
+    return SetWindowLongPtrW_sh.stdcall<LONG_PTR>(hWnd, nIndex, dwNewLong);
+}
+
 void WindowManagement()
 {
-    if (!bPauseOnFocusLoss || !bCatchAltF4) {
-        int i = 0;
-        while (i < 30 && !IsWindow(hWnd)) {
-            // Wait 1 sec then try again
-            Sleep(1000);
-            i++;
-            hWnd = FindWindowW(sWindowClassName, nullptr);
-        }
-
-        // If 30 seconds have passed and we still don't have the handle, give up
-        if (i == 30) {
-            spdlog::error("Window Focus: Failed to find window handle.");
-            return;
+    // Hook SetWindowLongPtrW
+    HMODULE user32Module = GetModuleHandleW(L"user32.dll");
+    if (user32Module) {
+        FARPROC SetWindowLongPtrW_fn = GetProcAddress(user32Module, "SetWindowLongPtrW");
+        if (SetWindowLongPtrW_fn) {
+            SetWindowLongPtrW_sh = safetyhook::create_inline(SetWindowLongPtrW_fn, reinterpret_cast<void*>(SetWindowLongPtrW_hk));
+            spdlog::info("Game Window: Hooked SetWindowLongPtrW.");
         }
         else {
-            OldWndProc = (WNDPROC)SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)NewWndProc);
-
-            // Check if SetWindowLongPtr failed
-            if (OldWndProc == nullptr) {
-                spdlog::error("Window Focus: Failed to set new WndProc.");
-                return;
-            }
-            else {
-                spdlog::info("Window Focus: Set new WndProc.");
-            }
+            spdlog::error("Game Window: Failed to get function address for SetWindowLongPtrW.");
         }
+    }
+    else {
+        spdlog::error("Game Window: Failed to get module handle for user32.dll.");
     }
 }
 
