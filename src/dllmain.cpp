@@ -48,6 +48,8 @@ float fHUDWidthOffset;
 float fHUDHeightOffset;
 
 // Variables
+int iPreResScaleX;
+int iPreResScaleY;
 int iCurrentResX;
 int iCurrentResY;
 
@@ -285,16 +287,32 @@ void IntroSkip()
 
 void Resolution()
 {
-    // Current Resolution
+    // Get current resolution and fix scaling to 16:9
     uint8_t* CurrentResolutionScanResult = Memory::PatternScan(baseModule, "4C ?? ?? ?? ?? ?? ?? ?? 8B ?? 48 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? 8D ?? ?? C1 ?? 04");
-    if (CurrentResolutionScanResult) {
-        spdlog::info("Current Resolution: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)CurrentResolutionScanResult - (uintptr_t)baseModule);
-
+    uint8_t* ResolutionFixScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? 89 ?? ?? ?? ?? ?? C5 ?? ?? ?? 89 ?? ?? ?? ?? ?? 85 ?? 7E ??");
+    if (CurrentResolutionScanResult && ResolutionFixScanResult) {
+        spdlog::info("Resolution: Current: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)CurrentResolutionScanResult - (uintptr_t)baseModule);
         static SafetyHookMid CurrentResolutionMidHook{};
         CurrentResolutionMidHook = safetyhook::create_mid(CurrentResolutionScanResult,
             [](SafetyHookContext& ctx) {
-                int iResX = (int)ctx.rax;
-                int iResY = (int)ctx.rdx;
+                // Store resolution, before scaling to 16:9 happens.
+                iPreResScaleX = (int)ctx.rax;
+                iPreResScaleY = (int)ctx.rdx;
+            });
+
+        spdlog::info("Resolution: Fix: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ResolutionFixScanResult - (uintptr_t)baseModule);
+        static SafetyHookMid ResolutionFixMidHook{};
+        ResolutionFixMidHook = safetyhook::create_mid(ResolutionFixScanResult,
+            [](SafetyHookContext& ctx) {
+                // Undo scaling to 16:9
+                if (bFixResolution) {
+                    ctx.xmm7.f32[0] = (float)iPreResScaleX;
+                    ctx.xmm6.f32[0] = (float)iPreResScaleY;
+                }
+          
+                // Log current resolution
+                int iResX = (int)ctx.xmm7.f32[0];
+                int iResY = (int)ctx.xmm6.f32[0];
 
                 if (iResX != iCurrentResX || iResY != iCurrentResY) {
                     iCurrentResX = iResX;
@@ -303,26 +321,9 @@ void Resolution()
                 }
             });
     }
-    else if (!CurrentResolutionScanResult) {
-        spdlog::error("Current Resolution: Pattern scan failed.");
-    }
-
-    // Fix resolution
-    uint8_t* ResolutionFixScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? 89 ?? ?? ?? ?? ?? C5 ?? ?? ?? 89 ?? ?? ?? ?? ?? 85 ?? 7E ??");
-    if (ResolutionFixScanResult) {
-        spdlog::info("Resolution Fix: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ResolutionFixScanResult - (uintptr_t)baseModule);
-
-        static SafetyHookMid ResolutionFixMidHook{};
-        ResolutionFixMidHook = safetyhook::create_mid(ResolutionFixScanResult,
-            [](SafetyHookContext& ctx) {
-                ctx.xmm7.f32[0] = (float)iCurrentResX;
-                ctx.xmm6.f32[0] = (float)iCurrentResY;
-            });
-    }
-    else if (!ResolutionFixScanResult) {
-        spdlog::error("Resolution Fix: Pattern scan failed.");
-    }
-    
+    else if (!CurrentResolutionScanResult || !ResolutionFixScanResult) {
+        spdlog::error("Resolution: Pattern scan(s) failed.");
+    }   
 }
 
 void AspectRatio()
@@ -332,7 +333,6 @@ void AspectRatio()
         uint8_t* AspectRatioScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? C5 ?? ?? ?? ?? C4 ?? ?? ?? ?? C5 ?? ?? ?? 33 ?? C7 ?? ?? ?? ?? ?? 00 00 80 BF");
         if (AspectRatioScanResult) {
             spdlog::info("Aspect Ratio: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)AspectRatioScanResult - (uintptr_t)baseModule);
-
             static SafetyHookMid AspectRatioMidHook{};
             AspectRatioMidHook = safetyhook::create_mid(AspectRatioScanResult,
                 [](SafetyHookContext& ctx) {
@@ -355,7 +355,6 @@ void HUD()
         uint8_t* HUDWidthScanResult = Memory::PatternScan(baseModule, "F3 0F ?? ?? ?? ?? ?? ?? E8 ?? ?? ?? ?? F3 0F ?? ?? 66 0F ?? ?? 0F ?? ?? F3 0F ?? ??");
         if (HUDWidthScanResult) {
             spdlog::info("HUD: Size: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)HUDWidthScanResult - (uintptr_t)baseModule);
-
             static SafetyHookMid HUDWidthMidHook{};
             HUDWidthMidHook = safetyhook::create_mid(HUDWidthScanResult + 0xD,
                 [](SafetyHookContext& ctx) {
@@ -379,7 +378,6 @@ void HUD()
         uint8_t* FadesScanResult = Memory::PatternScan(baseModule, "F3 0F ?? ?? ?? ?? ?? ?? 0F ?? ?? ?? ?? ?? ?? 89 ?? ?? 0F ?? ?? ?? ?? ?? ?? C1 ?? 08");
         if (FadesScanResult) {
             spdlog::info("HUD: Fades: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)FadesScanResult - (uintptr_t)baseModule);
-
             static SafetyHookMid FadesMidHook{};
             FadesMidHook = safetyhook::create_mid(FadesScanResult,
                 [](SafetyHookContext& ctx) {
@@ -405,7 +403,6 @@ void HUD()
         uint8_t* HUDOffsetScanResult = Memory::PatternScan(baseModule, "F2 41 ?? ?? ?? ?? ?? ?? ?? 4C ?? ?? ?? ?? ?? ?? 0F 28 ?? ?? ?? ?? ?? 48 8D ?? ?? ?? ?? ??");
         if (HUDOffsetScanResult) {
             spdlog::info("HUD: Offset: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)HUDOffsetScanResult - (uintptr_t)baseModule);
-
             static SafetyHookMid HUDOffsetMidHook{};
             HUDOffsetMidHook = safetyhook::create_mid(HUDOffsetScanResult + 0x9,
                 [](SafetyHookContext& ctx) {
@@ -428,7 +425,6 @@ void HUD()
         uint8_t* MouseVertScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? 48 ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ??");
         if (MouseHorScanResult && MouseVertScanResult) {
             spdlog::info("HUD: Mouse: Horizontal: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)MouseHorScanResult - (uintptr_t)baseModule);
-
             static SafetyHookMid MouseHorMidHook{};
             MouseHorMidHook = safetyhook::create_mid(MouseHorScanResult,
                 [](SafetyHookContext& ctx) {
@@ -437,7 +433,6 @@ void HUD()
                 });
 
             spdlog::info("HUD: Mouse: Vertical: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)MouseHorScanResult - (uintptr_t)baseModule);
-
             static SafetyHookMid MouseVertMidHook{};
             MouseVertMidHook = safetyhook::create_mid(MouseVertScanResult,
                 [](SafetyHookContext& ctx) {
@@ -456,7 +451,6 @@ void HUD()
         uint8_t* MoviesScanResult = Memory::PatternScan(baseModule, "8B ?? ?? 48 ?? ?? ?? 48 ?? ?? ?? ?? 4C ?? ?? ?? ?? 4C ?? ?? ?? ?? F3 0F ?? ?? ?? ?? E8 ?? ?? ?? ??");
         if (MoviesScanResult) {
             spdlog::info("HUD: Movies: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)MoviesScanResult - (uintptr_t)baseModule);
-
             static SafetyHookMid MoviesMidHook{};
             MoviesMidHook = safetyhook::create_mid(MoviesScanResult,
                 [](SafetyHookContext& ctx) {
@@ -485,7 +479,6 @@ void Framerate()
         uint8_t* FramerateCapScanResult = Memory::PatternScan(baseModule, "89 ?? ?? ?? ?? ?? 8B ?? C7 ?? ?? ?? ?? ?? ?? ?? 85 ?? 75 ?? 48 ?? ?? ?? ?? ?? ?? 00");
         if (FramerateCapScanResult) {
             spdlog::info("Framerate Cap: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)FramerateCapScanResult - (uintptr_t)baseModule);
-
             static SafetyHookMid FramerateCapMidHook{};
             FramerateCapMidHook = safetyhook::create_mid(FramerateCapScanResult,
                 [](SafetyHookContext& ctx) {
