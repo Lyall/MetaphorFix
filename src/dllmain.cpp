@@ -37,6 +37,7 @@ bool bPauseOnFocusLoss;
 bool bCatchAltF4;
 bool bFixFPSCap;
 bool bDisableDashBlur;
+float fGameplayFOVMulti;
 
 // Aspect ratio + HUD stuff
 float fPi = (float)3.141592653;
@@ -217,6 +218,13 @@ void Configuration()
     inipp::get_value(ini.sections["Intro Skip"], "SkipMovie", bSkipMovie);
     spdlog::info("Config Parse: bIntroSkip: {}", bIntroSkip);
     spdlog::info("Config Parse: bSkipMovie: {}", bSkipMovie);
+
+    inipp::get_value(ini.sections["Gameplay FOV"], "Multiplier", fGameplayFOVMulti);
+    if (fGameplayFOVMulti < 0.10f || fGameplayFOVMulti > 3.00f) {
+        fGameplayFOVMulti = std::clamp(fGameplayFOVMulti, 0.10f, 3.00f);
+        spdlog::warn("Config Parse: fGameplayFOVMulti value invalid, clamped to {}", fGameplayFOVMulti);
+    }
+    spdlog::info("Config Parse: fGameplayFOVMulti: {}", fGameplayFOVMulti);
 
     inipp::get_value(ini.sections["Game Window"], "PauseOnFocusLoss", bPauseOnFocusLoss);
     inipp::get_value(ini.sections["Game Window"], "CatchAltF4", bCatchAltF4);
@@ -430,6 +438,24 @@ void AspectRatioFOV()
         }
     }
 
+    if (fGameplayFOVMulti != 1.00f) {
+        // Gameplay FOV
+        uint8_t* GameplayFOVScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? ?? ?? ?? ?? 48 ?? ?? E8 ?? ?? ?? ?? C7 ?? ?? 09 00 00 00 E9 ?? ?? ?? ??");
+        if (GameplayFOVScanResult) {
+            spdlog::info("FOV: Gameplay: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)GameplayFOVScanResult - (uintptr_t)baseModule);
+            uintptr_t GameplayFOVFunctionAddr = Memory::GetAbsolute((uintptr_t)GameplayFOVScanResult + 0xC);
+            spdlog::info("FOV: Gameplay: Function address is {:s}+{:x}", sExeName.c_str(), GameplayFOVFunctionAddr - (uintptr_t)baseModule);
+
+            static SafetyHookMid GameplayFOVMidHook{};
+            GameplayFOVMidHook = safetyhook::create_mid(GameplayFOVFunctionAddr,
+                [](SafetyHookContext& ctx) {
+                    ctx.xmm1.f32[0] *= fGameplayFOVMulti;
+                });
+        }
+        else if (!GameplayFOVScanResult) {
+            spdlog::error("FOV: Gameplay: Pattern scan failed.");
+        }
+    }
 }
 
 void HUD() 
