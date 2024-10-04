@@ -309,14 +309,11 @@ void WindowManagement()
 
 void IntroSkip()
 {
-    if (bIntroSkip)
-    {
+    if (bIntroSkip) {
         // Intro Skip
         uint8_t* IntroSkipScanResult = Memory::PatternScan(baseModule, "83 ?? 49 0F 87 ?? ?? ?? ?? 48 8D ?? ?? ?? ?? ?? 8B ?? ?? ?? ?? ?? ?? 48 ?? ??");
-        if (IntroSkipScanResult)
-        {
+        if (IntroSkipScanResult) {
             spdlog::info("Intro Skip: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)IntroSkipScanResult - (uintptr_t)baseModule);
-
             static SafetyHookMid IntroSkipMidHook{};
             IntroSkipMidHook = safetyhook::create_mid(IntroSkipScanResult,
                 [](SafetyHookContext& ctx) {
@@ -351,8 +348,7 @@ void IntroSkip()
                     }    
                 });
         }
-        else if (!IntroSkipScanResult)
-        {
+        else if (!IntroSkipScanResult) {
             spdlog::error("Intro Skip: Pattern scan failed.");
         }
     }
@@ -484,9 +480,7 @@ void HUD()
         }
 
         // Fades
-        // app::UI::FadeLayout
         uint8_t* FadesScanResult = Memory::PatternScan(baseModule, "F3 0F ?? ?? ?? ?? ?? ?? 0F ?? ?? ?? ?? ?? ?? 89 ?? ?? 0F ?? ?? ?? ?? ?? ?? C1 ?? 08");
-        uint8_t* BackgroundsScanResult = Memory::PatternScan(baseModule, "F3 0F ?? ?? ?? ?? ?? ?? 0F ?? ?? 66 0F ?? ?? 00 F3 0F ?? ?? ?? ?? 66 0F ?? ?? ?? 66 0F ?? ?? ?? ?? C1 ?? 08 0B ??");
         if (FadesScanResult) {
             spdlog::info("HUD: Fades: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)FadesScanResult - (uintptr_t)baseModule);
             static SafetyHookMid FadesMidHook{};
@@ -505,10 +499,17 @@ void HUD()
                         }
                     }
                 });
+        }
+        else if (!FadesScanResult) {
+            spdlog::error("HUD: Fades: Pattern scan failed.");
+        }
 
-            spdlog::info("HUD: Backgrounds: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)BackgroundsScanResult - (uintptr_t)baseModule);
-            static SafetyHookMid BackgroundsMidHook{};
-            BackgroundsMidHook = safetyhook::create_mid((uintptr_t)baseModule + 0x1401B15,
+        // Backgrounds 1
+        uint8_t* Backgrounds1ScanResult = Memory::PatternScan(baseModule, "F3 0F ?? ?? ?? ?? ?? ?? 0F ?? ?? 66 0F ?? ?? ?? F3 0F ?? ?? ?? ?? 66 0F ?? ?? ??");
+        if (Backgrounds1ScanResult) {
+            spdlog::info("HUD: Backgrounds: 1: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)Backgrounds1ScanResult - (uintptr_t)baseModule);
+            static SafetyHookMid Backgrounds1MidHook{};
+            Backgrounds1MidHook = safetyhook::create_mid(Backgrounds1ScanResult,
                 [](SafetyHookContext& ctx) {
                     if (ctx.rbx + 0x64) {
                         if (*reinterpret_cast<float*>(ctx.rbx + 0x64) == 2160.00f && *reinterpret_cast<float*>(ctx.rbx + 0x80) == 3840.00f) {
@@ -524,8 +525,33 @@ void HUD()
                     }
                 });
         }
-        else if (!FadesScanResult) {
-            spdlog::error("HUD: Fades: Pattern scan failed.");
+        else if (!Backgrounds1ScanResult) {
+            spdlog::error("HUD: Backgrounds: 1: Pattern scan failed.");
+        }
+
+        // Backgrounds 2
+        uint8_t* Backgrounds2ScanResult = Memory::PatternScan(baseModule, "F3 0F ?? ?? ?? ?? ?? ?? 0F ?? ?? 66 0F ?? ?? ?? F3 0F ?? ?? ?? ?? 66 0F ?? ?? ??");
+        if (Backgrounds2ScanResult) {
+            spdlog::info("HUD: Backgrounds: 2: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)Backgrounds2ScanResult - (uintptr_t)baseModule);
+            static SafetyHookMid Backgrounds2MidHook{};
+            Backgrounds2MidHook = safetyhook::create_mid(Backgrounds2ScanResult,
+                [](SafetyHookContext& ctx) {
+                    if (ctx.rbx + 0x64) {
+                        if (*reinterpret_cast<float*>(ctx.rbx + 0x64) == 2160.00f && *reinterpret_cast<float*>(ctx.rbx + 0x80) == 3840.00f) {
+                            if (fAspectRatio > fNativeAspect) {
+                                *reinterpret_cast<float*>(ctx.rbx + 0x80) = 2160.00f * fAspectRatio;
+                                *reinterpret_cast<float*>(ctx.rbx + 0xA0) = 2160.00f * fAspectRatio;
+                            }
+                            else if (fAspectRatio < fNativeAspect) {
+                                *reinterpret_cast<float*>(ctx.rbx + 0x64) = 3840.00f / fAspectRatio;
+                                *reinterpret_cast<float*>(ctx.rbx + 0xA4) = 3840.00f / fAspectRatio;
+                            }
+                        }
+                    }
+                });
+        }
+        else if (!Backgrounds2ScanResult) {
+            spdlog::error("HUD: Backgrounds: 2: Pattern scan failed.");
         }
 
         /*
@@ -571,9 +597,9 @@ void HUD()
         else if (!HUDOffset1ScanResult || !HUDOffset2ScanResult) {     
             spdlog::error("HUD: Offset: Pattern scan failed.");
         }
-        */
+        
 
-        // HUD Offset
+        // HUD Offset (Alt)
         uint8_t* HUDOffsetScanResult = Memory::PatternScan(baseModule, "40 ?? ?? 79 ?? 0F ?? ?? ?? 0F ?? ?? 48 ?? ?? 04");
         if (HUDOffsetScanResult) {
             spdlog::info("HUD: Offset: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)HUDOffsetScanResult - (uintptr_t)baseModule);
@@ -591,7 +617,7 @@ void HUD()
         else if (!HUDOffsetScanResult) {
             spdlog::error("HUD: Offset: Pattern scan failed.");
         }
-
+        
         // Mouse
         uint8_t* MouseHorScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? 48 8B ?? ?? ?? C5 ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ??");
         uint8_t* MouseVertScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? 48 ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ??");
@@ -613,8 +639,9 @@ void HUD()
                 });
         }
         else if (!MouseHorScanResult || !MouseVertScanResult) {
-            spdlog::error("HUD: Mouse: Pattern scan failed.");
+            spdlog::error("HUD: Mouse: Pattern scan(s) failed.");
         }
+        */
     }
 
     if (bFixMovies) {
