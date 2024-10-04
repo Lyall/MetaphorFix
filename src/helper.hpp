@@ -81,6 +81,11 @@ namespace Memory
         auto ntHeaders = (PIMAGE_NT_HEADERS)((std::uint8_t*)module + dosHeader->e_lfanew);
         return ntHeaders->FileHeader.TimeDateStamp;
     }
+
+    uintptr_t GetAbsolute(uintptr_t address) noexcept
+    {
+        return (address + 4 + *reinterpret_cast<std::int32_t*>(address));
+    }
 }
 
 namespace Util
