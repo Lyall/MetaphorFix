@@ -537,7 +537,7 @@ void HUD()
             Backgrounds2MidHook = safetyhook::create_mid(Backgrounds2ScanResult,
                 [](SafetyHookContext& ctx) {
                     if (ctx.rbx + 0x64) {
-                        if (*reinterpret_cast<float*>(ctx.rbx + 0x64) == 2160.00f && *reinterpret_cast<float*>(ctx.rbx + 0x80) == 3840.00f) {
+                        if (*reinterpret_cast<float*>(ctx.rbx + 0x64) == 2160.00f && *reinterpret_cast<float*>(ctx.rbx + 0x80) == 3840.00f && *reinterpret_cast<int*>(ctx.rbx + 0x5C) != 1234) {
                             if (fAspectRatio > fNativeAspect) {
                                 *reinterpret_cast<float*>(ctx.rbx + 0x80) = 2160.00f * fAspectRatio;
                                 *reinterpret_cast<float*>(ctx.rbx + 0xA0) = 2160.00f * fAspectRatio;
@@ -546,6 +546,8 @@ void HUD()
                                 *reinterpret_cast<float*>(ctx.rbx + 0x64) = 3840.00f / fAspectRatio;
                                 *reinterpret_cast<float*>(ctx.rbx + 0xA4) = 3840.00f / fAspectRatio;
                             }
+                            // Write marker, since sometimes the width and height is overridden later and we need to let that happen.
+                            *reinterpret_cast<int*>(ctx.rbx + 0x5C) = 1234;
                         }
                     }
                 });
@@ -597,7 +599,6 @@ void HUD()
         else if (!HUDOffset1ScanResult || !HUDOffset2ScanResult) {     
             spdlog::error("HUD: Offset: Pattern scan failed.");
         }
-        
 
         // HUD Offset (Alt)
         uint8_t* HUDOffsetScanResult = Memory::PatternScan(baseModule, "40 ?? ?? 79 ?? 0F ?? ?? ?? 0F ?? ?? 48 ?? ?? 04");
