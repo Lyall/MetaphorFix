@@ -537,7 +537,7 @@ void HUD()
             Backgrounds2MidHook = safetyhook::create_mid(Backgrounds2ScanResult,
                 [](SafetyHookContext& ctx) {
                     if (ctx.rbx + 0x64) {
-                        if (*reinterpret_cast<float*>(ctx.rbx + 0x64) == 2160.00f && *reinterpret_cast<float*>(ctx.rbx + 0x80) == 3840.00f && *reinterpret_cast<int*>(ctx.rbx + 0x5C) != 1234) {
+                        if (*reinterpret_cast<float*>(ctx.rbx + 0x64) == 2160.00f && *reinterpret_cast<float*>(ctx.rbx + 0x80) == 3840.00f) {
                             if (fAspectRatio > fNativeAspect) {
                                 *reinterpret_cast<float*>(ctx.rbx + 0x80) = 2160.00f * fAspectRatio;
                                 *reinterpret_cast<float*>(ctx.rbx + 0xA0) = 2160.00f * fAspectRatio;
@@ -546,8 +546,6 @@ void HUD()
                                 *reinterpret_cast<float*>(ctx.rbx + 0x64) = 3840.00f / fAspectRatio;
                                 *reinterpret_cast<float*>(ctx.rbx + 0xA4) = 3840.00f / fAspectRatio;
                             }
-                            // Write marker, since sometimes the width and height is overridden later and we need to let that happen.
-                            *reinterpret_cast<int*>(ctx.rbx + 0x5C) = 1234;
                         }
                     }
                 });
@@ -556,7 +554,7 @@ void HUD()
             spdlog::error("HUD: Backgrounds: 2: Pattern scan failed.");
         }
 
-        /*
+        
         // HUD Offset 
         uint8_t* HUDOffset1ScanResult = Memory::PatternScan(baseModule, "F2 41 ?? ?? ?? ?? ?? ?? ?? 4C ?? ?? ?? ?? ?? ?? 0F 28 ?? ?? ?? ?? ?? 48 8D ?? ?? ?? ?? ??");
         uint8_t* HUDOffset2ScanResult = Memory::PatternScan(baseModule, "F3 0F ?? ?? 74 ?? ?? ?? F3 0F ?? ?? 78 ?? ?? ?? C3");
@@ -599,13 +597,13 @@ void HUD()
         else if (!HUDOffset1ScanResult || !HUDOffset2ScanResult) {     
             spdlog::error("HUD: Offset: Pattern scan failed.");
         }
-
+        /*
         // HUD Offset (Alt)
-        uint8_t* HUDOffsetScanResult = Memory::PatternScan(baseModule, "40 ?? ?? 79 ?? 0F ?? ?? ?? 0F ?? ?? 48 ?? ?? 04");
+        uint8_t* HUDOffsetScanResult = Memory::PatternScan(baseModule, "45 ?? ?? 8B ?? ?? 0F ?? ?? ?? ?? 89 ?? ?? 8B ?? ?? ?? 89 ?? ??");
         if (HUDOffsetScanResult) {
             spdlog::info("HUD: Offset: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)HUDOffsetScanResult - (uintptr_t)baseModule);
             static SafetyHookMid HUDOffset1MidHook{};
-            HUDOffset1MidHook = safetyhook::create_mid(HUDOffsetScanResult,
+            HUDOffset1MidHook = safetyhook::create_mid(HUDOffsetScanResult + 0x3,
                 [](SafetyHookContext& ctx) {
                         if (ctx.xmm3.f32[0] == 1080 || ctx.xmm14.f32[0] == 1920.00f) {
                             if (fAspectRatio > fNativeAspect)
@@ -618,7 +616,7 @@ void HUD()
         else if (!HUDOffsetScanResult) {
             spdlog::error("HUD: Offset: Pattern scan failed.");
         }
-        
+        */
         // Mouse
         uint8_t* MouseHorScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? 48 8B ?? ?? ?? C5 ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ??");
         uint8_t* MouseVertScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? 48 ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ??");
@@ -642,7 +640,6 @@ void HUD()
         else if (!MouseHorScanResult || !MouseVertScanResult) {
             spdlog::error("HUD: Mouse: Pattern scan(s) failed.");
         }
-        */
     }
 
     if (bFixMovies) {
@@ -712,6 +709,7 @@ DWORD __stdcall Main(void*)
     Logging();
     Configuration();
     WindowManagement();
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000)); // Sleep for a bit, as loading with SpecialK seems to cause pattern scans to fail.
     Resolution();
     IntroSkip();
     AspectRatioFOV();
