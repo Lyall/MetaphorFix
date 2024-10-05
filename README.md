@@ -9,6 +9,7 @@ This is a work-in-progress fix for the Metaphor: ReFantazio demo that adds ultra
 ## Features
 ### General
 - Intro skip.
+- Adjust gameplay FOV.
 - Disable pause when game loses focus.
 - Disable ALT+F4/exit handler.
 - Disable dash blur + speed lines.
@@ -16,6 +17,7 @@ This is a work-in-progress fix for the Metaphor: ReFantazio demo that adds ultra
 
 ### Ultrawide/narrower
 - Support for any resolution/aspect ratio.
+- Fix cropped FOV at <16:9.
 - Correctly scaled movies.
 
 ## Installation
@@ -28,6 +30,8 @@ This is a work-in-progress fix for the Metaphor: ReFantazio demo that adds ultra
 
 ## Recommended Mods
 - [SpecialK](https://steamcommunity.com/app/2679460/discussions/0/4842022494093910068/) - I highly recommend using this build of SpecialK with Metaphor: ReFantazio. It can improve performance significantly, along with offering many other useful features like an excellent framerate limiter.
+
+If using this fix with SpecialK, you will need to delete the bundled Ultimate ASI Loader DLL (`winmm.dll`). You can then add MetaphorFix as a plug-in through the SpecialK OSD (accessed with `CTRL+SHIFT+BACKSPACE`).
 
 ## Configuration
 - See **MetaphorFix.ini** to adjust settings for the fix.
