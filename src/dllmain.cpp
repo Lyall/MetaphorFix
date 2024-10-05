@@ -357,7 +357,12 @@ void IntroSkip()
 void Resolution()
 {
     // Get current resolution and fix scaling to 16:9
-    uint8_t* CurrentResolutionScanResult = Memory::PatternScan(baseModule, "4C ?? ?? ?? ?? ?? ?? ?? 8B ?? 48 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? 8D ?? ?? C1 ?? 04");
+    uint8_t* CurrentResolutionScanResult = nullptr;
+    for (int attempts = 0; attempts < 1000; ++attempts) {
+        if (CurrentResolutionScanResult = Memory::PatternScan(baseModule, "4C ?? ?? ?? ?? ?? ?? ?? 8B ?? 48 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? 8D ?? ?? C1 ?? 04"))
+            break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
     uint8_t* ResolutionFixScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? 89 ?? ?? ?? ?? ?? C5 ?? ?? ?? 89 ?? ?? ?? ?? ?? 85 ?? 7E ??");
     if (CurrentResolutionScanResult && ResolutionFixScanResult) {
         spdlog::info("Resolution: Current: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)CurrentResolutionScanResult - (uintptr_t)baseModule);
@@ -709,7 +714,6 @@ DWORD __stdcall Main(void*)
     Logging();
     Configuration();
     WindowManagement();
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000)); // Sleep for a bit, as loading with SpecialK seems to cause pattern scans to fail.
     Resolution();
     IntroSkip();
     AspectRatioFOV();
