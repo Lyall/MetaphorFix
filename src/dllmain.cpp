@@ -37,7 +37,7 @@ bool bPauseOnFocusLoss;
 bool bCatchAltF4;
 bool bFixFPSCap;
 bool bDisableDashBlur;
-bool bAORes;
+float fAOResolutionScale = 1.00f;
 float fGameplayFOVMulti;
 
 // Aspect ratio + HUD stuff
@@ -240,8 +240,12 @@ void Configuration()
     inipp::get_value(ini.sections["Disable Dash Blur"], "Enabled", bDisableDashBlur);
     spdlog::info("Config Parse: bDisableDashBlur: {}", bDisableDashBlur);
 
-    inipp::get_value(ini.sections["Ambient Occlusion Resolution"], "Enabled", bAORes);
-    spdlog::info("Config Parse: bAORes: {}", bAORes);
+    inipp::get_value(ini.sections["Ambient Occlusion"], "Resolution", fAOResolutionScale);
+    if (fAOResolutionScale < 0.10f || fAOResolutionScale > 1.00f) {
+        fAOResolutionScale = std::clamp(fAOResolutionScale, 0.10f, 1.00f);
+        spdlog::warn("Config Parse: fAOResolutionScale value invalid, clamped to {}", fAOResolutionScale);
+    }
+    spdlog::info("Config Parse: fAOResolutionScale: {}", fAOResolutionScale);
 
     spdlog::info("----------");
 
@@ -727,28 +731,65 @@ void Graphics()
         spdlog::error("Resolution Scale: Pattern scan failed.");
     }
 
-    if (bAORes) {
-        // Ambient Occlusion Resolution
-        uint8_t* AOResolutionScanResult = Memory::PatternScan(baseModule, "8B ?? 48 ?? ?? ?? ?? ?? ?? 48 ?? ?? 74 ?? E8 ?? ?? ?? ?? 41 ?? 00 40 00 00 41 ?? 16 00 00 00");
-        if (AOResolutionScanResult) {
-            spdlog::info("Ambient Occlusion Resolution: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)AOResolutionScanResult - (uintptr_t)baseModule);
-            static SafetyHookMid AOResolutionMidHook{};
-            AOResolutionMidHook = safetyhook::create_mid(AOResolutionScanResult,
-                [](SafetyHookContext& ctx) {
-                    if (ResScaleOptionAddr)
-                        iResScaleOption = *reinterpret_cast<int*>(ResScaleOptionAddr);
+    // Ambient Occlusion Resolution
+    uint8_t* AOResolutionScanResult = Memory::PatternScan(baseModule, "8B ?? 48 ?? ?? ?? ?? ?? ?? 48 ?? ?? 74 ?? E8 ?? ?? ?? ?? 41 ?? 00 40 00 00 41 ?? 16 00 00 00");
+    if (AOResolutionScanResult) {
+        spdlog::info("Ambient Occlusion Resolution: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)AOResolutionScanResult - (uintptr_t)baseModule);
+        static SafetyHookMid AOResolutionMidHook{};
+        AOResolutionMidHook = safetyhook::create_mid(AOResolutionScanResult,
+            [](SafetyHookContext& ctx) {
+                // Get resolution scale option
+                if (ResScaleOptionAddr)
+                    iResScaleOption = *reinterpret_cast<int*>(ResScaleOptionAddr);
 
-                    // Run ambient occlusion at native resolution when beyond 100% resolution scale.
-                    if (iResScaleOption < 4) {
-                        ctx.rbx = iCurrentResX;
-                        ctx.rax = iCurrentResY;
-                    }
-                });
-        }
-        else if (!AOResolutionScanResult) {
-            spdlog::error("Ambient Occlusion Resolution: Pattern scan failed.");
-        }
+                float fResScale;
+                switch (iResScaleOption) {
+                case 0:
+                    fResScale = 2.00f;  // 200%
+                    break;
+                case 1:
+                    fResScale = 1.75f;  // 175%
+                    break;
+                case 2:
+                    fResScale = 1.50f;  // 150%
+                    break;
+                case 3:
+                    fResScale = 1.25f;  // 125%
+                    break;
+                case 4:
+                    fResScale = 1.00f;  // 100%
+                    break;
+                case 5:
+                    fResScale = 0.75f;  // 75%
+                    break;
+                case 6:
+                    fResScale = 0.50f;  // 50%
+                    break;
+                default:
+                    fResScale = 1.00f;
+                    break;
+                }
+
+                // Calculate resolution with in-game resolution scale
+                int iScaledResX = static_cast<int>(iCurrentResX * fResScale);
+                int iScaledResY = static_cast<int>(iCurrentResY * fResScale);
+
+                // Calculate new ambient occlusion resolution
+                int iAmbientOcclusionResX = static_cast<int>(iScaledResX * fAOResolutionScale);
+                int iAmbientOcclusionResY = static_cast<int>(iScaledResY * fAOResolutionScale);
+
+                // Log old and new resolution
+                spdlog::info("Ambient Occlusion: Previous Resolution: {}x{}.", iScaledResX, iScaledResY);
+                spdlog::info("Ambient Occlusion: New Resolution: {}x{}.", iAmbientOcclusionResX, iAmbientOcclusionResY);
+
+                // Apply new resolution
+                ctx.rbx = iAmbientOcclusionResX;
+                ctx.rax = iAmbientOcclusionResY;
+            });
     }
+    else if (!AOResolutionScanResult) {
+        spdlog::error("Ambient Occlusion Resolution: Pattern scan failed.");
+    }   
 }
 
 DWORD __stdcall Main(void*)
