@@ -11,7 +11,7 @@ HMODULE thisModule; // Fix DLL
 
 // Version
 std::string sFixName = "MetaphorFix";
-std::string sFixVer = "0.7.3";
+std::string sFixVer = "0.7.4";
 std::string sLogFile = sFixName + ".log";
 
 // Logger
@@ -37,6 +37,7 @@ bool bPauseOnFocusLoss;
 bool bCatchAltF4;
 bool bFixFPSCap;
 bool bDisableDashBlur;
+bool bAORes;
 float fGameplayFOVMulti;
 
 // Aspect ratio + HUD stuff
@@ -236,6 +237,9 @@ void Configuration()
 
     inipp::get_value(ini.sections["Disable Dash Blur"], "Enabled", bDisableDashBlur);
     spdlog::info("Config Parse: bDisableDashBlur: {}", bDisableDashBlur);
+
+    inipp::get_value(ini.sections["Ambient Occlusion Resolution"], "Enabled", bAORes);
+    spdlog::info("Config Parse: bAORes: {}", bAORes);
 
     spdlog::info("----------");
 
@@ -602,6 +606,7 @@ void HUD()
         else if (!HUDOffset1ScanResult || !HUDOffset2ScanResult) {     
             spdlog::error("HUD: Offset: Pattern scan failed.");
         }
+
         /*
         // HUD Offset (Alt)
         uint8_t* HUDOffsetScanResult = Memory::PatternScan(baseModule, "45 ?? ?? 8B ?? ?? 0F ?? ?? ?? ?? 89 ?? ?? 8B ?? ?? ?? 89 ?? ??");
@@ -622,6 +627,7 @@ void HUD()
             spdlog::error("HUD: Offset: Pattern scan failed.");
         }
         */
+
         // Mouse
         uint8_t* MouseHorScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? 48 8B ?? ?? ?? C5 ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ??");
         uint8_t* MouseVertScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? 48 ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ??");
@@ -705,6 +711,31 @@ void Graphics()
         }
         else if (!DashBlurScanResult) {
             spdlog::error("Dash Blur: Pattern scan failed.");
+        }
+    }
+
+    if (bAORes) {
+        // Ambient Occlusion Resolution
+        uint8_t* AOResolutionScanResult = Memory::PatternScan(baseModule, "8B ?? 48 ?? ?? ?? ?? ?? ?? 48 ?? ?? 74 ?? E8 ?? ?? ?? ?? 41 ?? 00 40 00 00 41 ?? 16 00 00 00");
+        if (!AOResolutionScanResult) {
+            spdlog::info("Ambient Occlusion Resolution: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)AOResolutionScanResult - (uintptr_t)baseModule);
+            static SafetyHookMid AOResolutionMidHook{};
+            AOResolutionMidHook = safetyhook::create_mid(AOResolutionScanResult,
+                [](SafetyHookContext& ctx) {
+                    if (ctx.rax + 0x888) {
+                        int iResScale = *reinterpret_cast<int*>(ctx.rax + 0x888);
+                        // 0 = 200%, 1 = 175%, 2 = 150%, 3 = 125%, 4 = 100%, 5 = 75%, 6 = 50%
+
+                        // Run ambient occlusion at native resolution when beyond 100% resolution scale.
+                        if (iResScale < 4) {
+                            ctx.rbx = iCurrentResX;
+                            ctx.rax = iCurrentResY;
+                        }
+                    }
+                });
+        }
+        else if (!AOResolutionScanResult) {
+            spdlog::error("Ambient Occlusion Resolution: Pattern scan failed.");
         }
     }
 }
