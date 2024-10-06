@@ -55,6 +55,8 @@ int iPreResScaleX;
 int iPreResScaleY;
 int iCurrentResX;
 int iCurrentResY;
+uintptr_t ResScaleOptionAddr;
+int iResScaleOption = 4;
 
 void CalculateAspectRatio(bool bLog)
 {
@@ -714,23 +716,32 @@ void Graphics()
         }
     }
 
+    // Resolution Scale
+    uint8_t* ResolutionScaleScanResult = Memory::PatternScan(baseModule, "BA ?? 04 ?? ?? FF ?? ?? ?? ?? ?? 48 ?? ?? 48 ?? ?? ?? ?? ?? ?? 48 ?? ?? ?? 5B C3");
+    if (ResolutionScaleScanResult) {
+        spdlog::info("Resolution Scale: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ResolutionScaleScanResult - (uintptr_t)baseModule);
+        ResScaleOptionAddr = Memory::GetAbsolute((uintptr_t)ResolutionScaleScanResult + 0x11);
+        spdlog::info("Resolution Scale: Option address is {:s}+{:x}", sExeName.c_str(), ResScaleOptionAddr - (uintptr_t)baseModule);
+    }
+    else if (!ResolutionScaleScanResult) {
+        spdlog::error("Resolution Scale: Pattern scan failed.");
+    }
+
     if (bAORes) {
         // Ambient Occlusion Resolution
         uint8_t* AOResolutionScanResult = Memory::PatternScan(baseModule, "8B ?? 48 ?? ?? ?? ?? ?? ?? 48 ?? ?? 74 ?? E8 ?? ?? ?? ?? 41 ?? 00 40 00 00 41 ?? 16 00 00 00");
-        if (!AOResolutionScanResult) {
+        if (AOResolutionScanResult) {
             spdlog::info("Ambient Occlusion Resolution: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)AOResolutionScanResult - (uintptr_t)baseModule);
             static SafetyHookMid AOResolutionMidHook{};
             AOResolutionMidHook = safetyhook::create_mid(AOResolutionScanResult,
                 [](SafetyHookContext& ctx) {
-                    if (ctx.rax + 0x888) {
-                        int iResScale = *reinterpret_cast<int*>(ctx.rax + 0x888);
-                        // 0 = 200%, 1 = 175%, 2 = 150%, 3 = 125%, 4 = 100%, 5 = 75%, 6 = 50%
+                    if (ResScaleOptionAddr)
+                        iResScaleOption = *reinterpret_cast<int*>(ResScaleOptionAddr);
 
-                        // Run ambient occlusion at native resolution when beyond 100% resolution scale.
-                        if (iResScale < 4) {
-                            ctx.rbx = iCurrentResX;
-                            ctx.rax = iCurrentResY;
-                        }
+                    // Run ambient occlusion at native resolution when beyond 100% resolution scale.
+                    if (iResScaleOption < 4) {
+                        ctx.rbx = iCurrentResX;
+                        ctx.rax = iCurrentResY;
                     }
                 });
         }
