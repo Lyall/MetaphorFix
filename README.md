@@ -12,13 +12,17 @@ This is a work-in-progress fix for the Metaphor: ReFantazio demo that adds ultra
 - Adjust gameplay FOV.
 - Disable pause when game loses focus.
 - Disable ALT+F4/exit handler.
-- Disable dash blur + speed lines.
 - Remove 60fps cap in menus.
 
 ### Ultrawide/narrower
 - Support for any resolution/aspect ratio.
 - Fix cropped FOV at <16:9.
 - Correctly scaled movies.
+
+### Graphics
+- Disable dash blur + speed lines.
+- Adjust ambient occlusion resolution.
+- Adjust level of detail distance.
 
 ## Installation
 - Grab the latest release of MetaphorFix from [here.](https://github.com/Lyall/MetaphorFix/releases)
@@ -27,11 +31,6 @@ This is a work-in-progress fix for the Metaphor: ReFantazio demo that adds ultra
 ### Steam Deck/Linux Additional Instructions
 🚩**You do not need to do this if you are using Windows!**
 - Open up the game properties in Steam and add `WINEDLLOVERRIDES="winmm=n,b" %command%` to the launch options.
-
-## Recommended Mods
-- [SpecialK](https://steamcommunity.com/app/2679460/discussions/0/4842022494093910068/) - I highly recommend using this build of SpecialK with Metaphor: ReFantazio. It can improve performance significantly, along with offering many other useful features like an excellent framerate limiter.
-
-If using this fix with SpecialK, you will need to delete the bundled Ultimate ASI Loader DLL (`winmm.dll`). You can then add MetaphorFix as a plug-in through the SpecialK OSD (accessed with `CTRL+SHIFT+BACKSPACE`).
 
 ## Configuration
 - See **MetaphorFix.ini** to adjust settings for the fix.
