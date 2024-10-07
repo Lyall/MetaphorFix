@@ -593,7 +593,7 @@ void HUD()
                     if (ctx.r14 + 0xB6C) {
                         std::string sElementName = (std::string)(char*)(ctx.r14 + 0x10);
                         // Check if marked or 0.00f
-                        if ( (*reinterpret_cast<int*>(ctx.r14 + 0xB6C) == 42069 || *reinterpret_cast<float*>(ctx.r14 + 0xB74) == 0.00f)
+                        if ((*reinterpret_cast<int*>(ctx.r14 + 0xB6C) == 42069 || *reinterpret_cast<float*>(ctx.r14 + 0xB74) == 0.00f)
                             && !sElementName.contains("minimap_icon") ) {
                             if (fAspectRatio > fNativeAspect)
                                 ctx.xmm2.f32[0] += ((2160.00f * fAspectRatio) - 3840.00f) / 2.00f;
@@ -601,7 +601,7 @@ void HUD()
                             if (fAspectRatio < fNativeAspect)
                                 ctx.xmm2.f32[1] += ((3840.00f / fAspectRatio) - 2160.00f) / 2.00f;
                         }
-                    }  
+                    }   
                 });
 
             spdlog::info("HUD: Offset: 2: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)HUDOffset2ScanResult - (uintptr_t)baseModule);
@@ -609,7 +609,8 @@ void HUD()
             HUDOffset2MidHook = safetyhook::create_mid(HUDOffset2ScanResult,
                 [](SafetyHookContext& ctx) {
                     if (ctx.rcx + 0xB6C) {
-                        // Subtract hud offset
+                        // Write marker
+                        *reinterpret_cast<int*>(ctx.rcx + 0xB6C) = 42069;
                         if (fAspectRatio > fNativeAspect)
                             ctx.xmm1.f32[0] -= ((2160.00f * fAspectRatio) - 3840.00f) / 2.00f;
 
