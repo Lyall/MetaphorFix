@@ -11,7 +11,7 @@ HMODULE thisModule; // Fix DLL
 
 // Version
 std::string sFixName = "MetaphorFix";
-std::string sFixVer = "0.7.6";
+std::string sFixVer = "0.7.7";
 std::string sLogFile = sFixName + ".log";
 
 // Logger
@@ -41,6 +41,8 @@ float fAOResolutionScale = 1.00f;
 float fGameplayFOVMulti;
 float fLODDistance = 10.00f;
 bool bFixAnalog;
+float fCustomResScale = 1.00f;
+bool bDisableOutlines;
 
 // Aspect ratio + HUD stuff
 float fPi = (float)3.141592653;
@@ -57,7 +59,6 @@ int iPreResScaleX;
 int iPreResScaleY;
 int iCurrentResX;
 int iCurrentResY;
-uintptr_t ResScaleOptionAddr;
 int iResScaleOption = 4;
 uintptr_t LODDistanceAddr;
 
@@ -260,6 +261,16 @@ void Configuration()
     }
     spdlog::info("Config Parse: fLODDistance: {}", fLODDistance);
 
+    inipp::get_value(ini.sections["Custom Resolution Scale"], "Resolution", fCustomResScale);
+    if (fCustomResScale < 0.10f || fCustomResScale > 4.00f) {
+        fCustomResScale = std::clamp(fCustomResScale, 0.10f, 4.00f);
+        spdlog::warn("Config Parse: fCustomResScale value invalid, clamped to {}", fCustomResScale);
+    }
+    spdlog::info("Config Parse: fCustomResScale: {}", fCustomResScale);
+
+    inipp::get_value(ini.sections["Disable Outlines"], "Enabled", bDisableOutlines);
+    spdlog::info("Config Parse: bDisableOutlines: {}", bDisableOutlines);
+
     spdlog::info("----------");
 
     // Grab desktop resolution/aspect
@@ -280,12 +291,10 @@ LRESULT __stdcall NewWndProc(HWND window, UINT message_type, WPARAM w_param, LPA
         }
         break;
     case WM_SYSCOMMAND:
-        switch (w_param)
-        {
+        switch (w_param) {
             // Disable screensaver/monitor sleep
             case SC_SCREENSAVE:
-            case SC_MONITORPOWER:
-            {
+            case SC_MONITORPOWER: {
                 if (l_param != -1)
                     return TRUE;
             }
@@ -593,7 +602,7 @@ void HUD()
         else if (!Backgrounds2ScanResult) {
             spdlog::error("HUD: Backgrounds: 2: Pattern scan failed.");
         }
-
+        /*
         // HUD Offset 
         uint8_t* HUDOffset1ScanResult = Memory::PatternScan(baseModule, "F2 41 ?? ?? ?? ?? ?? ?? ?? 4C ?? ?? ?? ?? ?? ?? 0F 28 ?? ?? ?? ?? ?? 48 8D ?? ?? ?? ?? ??");
         uint8_t* HUDOffset2ScanResult = Memory::PatternScan(baseModule, "F3 0F ?? ?? 74 ?? ?? ?? F3 0F ?? ?? 78 ?? ?? ?? C3");
@@ -634,7 +643,7 @@ void HUD()
         else if (!HUDOffset1ScanResult || !HUDOffset2ScanResult) {     
             spdlog::error("HUD: Offset: Pattern scan failed.");
         }
-        
+        */
         /*
         // HUD Offset (Alt)
         uint8_t* HUDOffsetScanResult = Memory::PatternScan(baseModule, "45 ?? ?? 8B ?? ?? 0F ?? ?? ?? ?? 89 ?? ?? 8B ?? ?? ?? 89 ?? ??");
@@ -756,13 +765,29 @@ void Graphics()
     }
 
     // Resolution Scale
-    uint8_t* ResolutionScaleScanResult = Memory::PatternScan(baseModule, "BA ?? 04 ?? ?? FF ?? ?? ?? ?? ?? 48 ?? ?? 48 ?? ?? ?? ?? ?? ?? 48 ?? ?? ?? 5B C3");
+    uint8_t* ResolutionScaleScanResult = Memory::PatternScan(baseModule, "8B ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? 44 ?? ?? ??");
     if (ResolutionScaleScanResult) {
         spdlog::info("Resolution Scale: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ResolutionScaleScanResult - (uintptr_t)baseModule);
-        ResScaleOptionAddr = Memory::GetAbsolute((uintptr_t)ResolutionScaleScanResult + 0x11);
-        spdlog::info("Resolution Scale: Option address is {:s}+{:x}", sExeName.c_str(), ResScaleOptionAddr - (uintptr_t)baseModule);
+        static SafetyHookMid ResolutionScaleMidHook{};
+        ResolutionScaleMidHook = safetyhook::create_mid(ResolutionScaleScanResult + 0xE,
+            [](SafetyHookContext& ctx) {
+                // Set custom resolution scale
+                if (fCustomResScale != 1.00f && ctx.rcx + 0x888) {
+                    // Set res scale option to 4 (100%)
+                    *reinterpret_cast<int*>(ctx.rcx + 0x888) = 4;
+                    ctx.rax = 4;
+                    // Write new resolution scale
+                    Memory::Write(ctx.rdx + 0x10, 1.00f / fCustomResScale);
+
+                    spdlog::info("Resolution Scale: Custom: Base Resolution: {}x{}.", iCurrentResX, iCurrentResY);
+                    spdlog::info("Resolution Scale: Custom: Scaled Resolution: {}x{}.", static_cast<int>(iCurrentResX * fCustomResScale), static_cast<int>(iCurrentResY * fCustomResScale));
+                }
+
+                // Log res scale option for AO
+                iResScaleOption = (int)ctx.rax;
+            });
     }
-    else if (!ResolutionScaleScanResult) {
+    else if (!ResolutionScaleScanResult) { 
         spdlog::error("Resolution Scale: Pattern scan failed.");
     }
 
@@ -774,11 +799,7 @@ void Graphics()
             static SafetyHookMid AOResolutionMidHook{};
             AOResolutionMidHook = safetyhook::create_mid(AOResolutionScanResult,
                 [](SafetyHookContext& ctx) {
-                    // Get resolution scale option
-                    if (ResScaleOptionAddr)
-                        iResScaleOption = *reinterpret_cast<int*>(ResScaleOptionAddr);
-
-                    float fResScale;
+                    float fResScale = 1.00f;
                     switch (iResScaleOption) {
                     case 0:
                         fResScale = 2.00f;  // 200%
@@ -806,6 +827,9 @@ void Graphics()
                         break;
                     }
 
+                    if (fCustomResScale != 1.00f)
+                        fResScale = fCustomResScale;
+
                     // Calculate resolution with in-game resolution scale
                     int iScaledResX = static_cast<int>(iCurrentResX * fResScale);
                     int iScaledResY = static_cast<int>(iCurrentResY * fResScale);
@@ -828,14 +852,14 @@ void Graphics()
         }
     }
   
-    if (fLODDistance != 10.00f)
-    {
+    if (fLODDistance != 10.00f) {
         // LOD Distance
         uint8_t* LODDistanceScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? ?? ?? ? ?? C5 ?? ?? ?? ?? ?? 73 ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? 72 ?? C5 ?? ?? ?? ?? 73 ??");
         if (LODDistanceScanResult) {
             spdlog::info("LOD Distance: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)LODDistanceScanResult - (uintptr_t)baseModule);
             LODDistanceAddr = Memory::GetAbsolute((uintptr_t)LODDistanceScanResult + 0x4);
-            spdlog::info("LOD Distance: Value address is {:s}+{:x}", sExeName.c_str(), ResScaleOptionAddr - (uintptr_t)baseModule);
+            spdlog::info("LOD Distance: Value address is {:s}+{:x}", sExeName.c_str(), LODDistanceAddr - (uintptr_t)baseModule);
+
             // Big number scary
             float fRealLODDistance = fLODDistance * 1000.00f;
             // This value can be modified directly since it's only accessed by one function. 
@@ -846,15 +870,17 @@ void Graphics()
         }
     }
 
-    // Outline shader
-    uint8_t* OutlineShaderScanResult = Memory::PatternScan(baseModule, "C7 ?? ?? ?? ?? ?? 0F 00 00 00 C6 ?? ?? ?? ?? ?? 01 C6 ?? ?? ?? ?? ?? 01");
-    if (OutlineShaderScanResult) {
-        spdlog::info("Outline Shader: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)OutlineShaderScanResult - (uintptr_t)baseModule);
-        //Memory::PatchBytes((uintptr_t)OutlineShaderScanResult + 0x10, "\x00", 1);
-        spdlog::info("Outline Shader: Patched instruction.");
-    }
-    else if (!OutlineShaderScanResult) {
-        spdlog::error("Outline Shader: Pattern scan failed.");
+    if (bDisableOutlines) {
+        // Outline Shader
+        uint8_t* OutlineShaderScanResult = Memory::PatternScan(baseModule, "C7 ?? ?? ?? ?? ?? 0F 00 00 00 C6 ?? ?? ?? ?? ?? 01 C6 ?? ?? ?? ?? ?? 01");
+        if (OutlineShaderScanResult) {
+            spdlog::info("Outline Shader: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)OutlineShaderScanResult - (uintptr_t)baseModule);
+            Memory::PatchBytes((uintptr_t)OutlineShaderScanResult + 0x10, "\x00", 1);
+            spdlog::info("Outline Shader: Patched instruction.");
+        }
+        else if (!OutlineShaderScanResult) {
+            spdlog::error("Outline Shader: Pattern scan failed.");
+        }
     }
 }
 
