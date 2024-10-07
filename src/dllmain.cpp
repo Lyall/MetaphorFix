@@ -40,6 +40,7 @@ bool bDisableDashBlur;
 float fAOResolutionScale = 1.00f;
 float fGameplayFOVMulti;
 float fLODDistance = 10.00f;
+bool bFixAnalog;
 
 // Aspect ratio + HUD stuff
 float fPi = (float)3.141592653;
@@ -238,6 +239,9 @@ void Configuration()
 
     inipp::get_value(ini.sections["Fix Framerate Cap"], "Enabled", bFixFPSCap);
     spdlog::info("Config Parse: bFixFPSCap: {}", bFixFPSCap);
+
+    inipp::get_value(ini.sections["Fix Analog Movement"], "Enabled", bFixAnalog);
+    spdlog::info("Config Parse: bFixAnalog: {}", bFixAnalog);
 
     inipp::get_value(ini.sections["Disable Dash Blur"], "Enabled", bDisableDashBlur);
     spdlog::info("Config Parse: bDisableDashBlur: {}", bDisableDashBlur);
@@ -578,7 +582,6 @@ void HUD()
             spdlog::error("HUD: Backgrounds: 2: Pattern scan failed.");
         }
 
-        
         // HUD Offset 
         uint8_t* HUDOffset1ScanResult = Memory::PatternScan(baseModule, "F2 41 ?? ?? ?? ?? ?? ?? ?? 4C ?? ?? ?? ?? ?? ?? 0F 28 ?? ?? ?? ?? ?? 48 8D ?? ?? ?? ?? ??");
         uint8_t* HUDOffset2ScanResult = Memory::PatternScan(baseModule, "F3 0F ?? ?? 74 ?? ?? ?? F3 0F ?? ?? 78 ?? ?? ?? C3");
@@ -589,16 +592,15 @@ void HUD()
                 [](SafetyHookContext& ctx) {
                     if (ctx.r14 + 0xB6C) {
                         std::string sElementName = (std::string)(char*)(ctx.r14 + 0x10);
-
                         // Check if marked or 0.00f
-                        if ( (*reinterpret_cast<int*>(ctx.r14 + 0xB6C) == 42069 || *reinterpret_cast<float*>(ctx.r14 + 0xB74) == 0.00f) 
+                        if ( (*reinterpret_cast<int*>(ctx.r14 + 0xB6C) == 42069 || *reinterpret_cast<float*>(ctx.r14 + 0xB74) == 0.00f)
                             && !sElementName.contains("minimap_icon") ) {
                             if (fAspectRatio > fNativeAspect)
                                 ctx.xmm2.f32[0] += ((2160.00f * fAspectRatio) - 3840.00f) / 2.00f;
 
                             if (fAspectRatio < fNativeAspect)
                                 ctx.xmm2.f32[1] += ((3840.00f / fAspectRatio) - 2160.00f) / 2.00f;
-                        }  
+                        }
                     }  
                 });
 
@@ -607,8 +609,6 @@ void HUD()
             HUDOffset2MidHook = safetyhook::create_mid(HUDOffset2ScanResult,
                 [](SafetyHookContext& ctx) {
                     if (ctx.rcx + 0xB6C) {
-                        // Write marker
-                        *reinterpret_cast<int*>(ctx.rcx + 0xB6C) = 42069;
                         // Subtract hud offset
                         if (fAspectRatio > fNativeAspect)
                             ctx.xmm1.f32[0] -= ((2160.00f * fAspectRatio) - 3840.00f) / 2.00f;
@@ -621,7 +621,7 @@ void HUD()
         else if (!HUDOffset1ScanResult || !HUDOffset2ScanResult) {     
             spdlog::error("HUD: Offset: Pattern scan failed.");
         }
-
+        
         /*
         // HUD Offset (Alt)
         uint8_t* HUDOffsetScanResult = Memory::PatternScan(baseModule, "45 ?? ?? 8B ?? ?? 0F ?? ?? ?? ?? 89 ?? ?? 8B ?? ?? ?? 89 ?? ??");
@@ -695,7 +695,7 @@ void HUD()
     }
 }
 
-void Framerate() 
+void Misc() 
 {
     if (bFixFPSCap) {
         // Fix framerate cap. Stops menus being locked to 60fps with vsync off and other odd behaviour.
@@ -710,6 +710,19 @@ void Framerate()
         }
         else if (!FramerateCapScanResult) {
             spdlog::error("Framerate Cap: Pattern scan failed.");
+        }
+    }
+
+    if (bFixAnalog) {
+        uint8_t* XInputGetStateScanResult = Memory::PatternScan(baseModule, "3D ?? ?? ?? ?? 8D ?? ?? ?? ?? ?? C5 ?? ?? ?? 41 ?? ?? ?? 3D ?? ?? ?? ?? C5 ?? ?? ?? 0F ?? ?? ?? ??");
+        if (XInputGetStateScanResult) {
+            spdlog::info("Analog Movement Fix: XInputGetState: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)XInputGetStateScanResult - (uintptr_t)baseModule);
+            Memory::Write((uintptr_t)XInputGetStateScanResult + 0x55, 0);
+            Memory::Write((uintptr_t)XInputGetStateScanResult + 0x68, 0);
+            spdlog::info("Analog Movement Fix: XInputGetState: Patched instructions.");
+        }
+        else if (!XInputGetStateScanResult) {
+            spdlog::error("Analog Movement Fix: XInputGetState: Pattern scan failed.");
         }
     }
 }
@@ -830,7 +843,7 @@ DWORD __stdcall Main(void*)
     IntroSkip();
     AspectRatioFOV();
     HUD();
-    Framerate();
+    Misc();
     Graphics();
     return true;
 }
