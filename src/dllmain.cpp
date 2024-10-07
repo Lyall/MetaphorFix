@@ -273,10 +273,22 @@ WNDPROC OldWndProc;
 LRESULT __stdcall NewWndProc(HWND window, UINT message_type, WPARAM w_param, LPARAM l_param) {
     switch (message_type) {
     case WM_ACTIVATE:
-    case WM_ACTIVATEAPP:
-        if (w_param == WA_INACTIVE && !bPauseOnFocusLoss) {
+    case WM_KILLFOCUS:
+        if (!bPauseOnFocusLoss) {
             // Disable pause on focus loss.
             return 0;
+        }
+        break;
+    case WM_SYSCOMMAND:
+        switch (w_param)
+        {
+            // Disable screensaver/monitor sleep
+            case SC_SCREENSAVE:
+            case SC_MONITORPOWER:
+            {
+                if (l_param != -1)
+                    return TRUE;
+            }
         }
         break;
     case WM_CLOSE:
@@ -832,6 +844,17 @@ void Graphics()
         else if (!LODDistanceScanResult) {
             spdlog::error("LOD Distance: Pattern scan failed.");
         }
+    }
+
+    // Outline shader
+    uint8_t* OutlineShaderScanResult = Memory::PatternScan(baseModule, "C7 ?? ?? ?? ?? ?? 0F 00 00 00 C6 ?? ?? ?? ?? ?? 01 C6 ?? ?? ?? ?? ?? 01");
+    if (OutlineShaderScanResult) {
+        spdlog::info("Outline Shader: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)OutlineShaderScanResult - (uintptr_t)baseModule);
+        //Memory::PatchBytes((uintptr_t)OutlineShaderScanResult + 0x10, "\x00", 1);
+        spdlog::info("Outline Shader: Patched instruction.");
+    }
+    else if (!OutlineShaderScanResult) {
+        spdlog::error("Outline Shader: Pattern scan failed.");
     }
 }
 
