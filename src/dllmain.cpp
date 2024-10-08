@@ -283,13 +283,36 @@ void Configuration()
 WNDPROC OldWndProc;
 LRESULT __stdcall NewWndProc(HWND window, UINT message_type, WPARAM w_param, LPARAM l_param) {
     switch (message_type) {
-    case WM_ACTIVATE:
-    case WM_KILLFOCUS:
-        if (!bPauseOnFocusLoss) {
-            // Disable pause on focus loss.
+    case WM_NCACTIVATE:
+        if (w_param == FALSE && !bPauseOnFocusLoss) {
             return 0;
         }
         break;
+
+    case WM_ACTIVATE:
+        if (w_param == WA_INACTIVE && !bPauseOnFocusLoss) {
+            return 0;
+        }
+        break;
+
+    case WM_KILLFOCUS:
+        if (!bPauseOnFocusLoss) {
+            return 0;
+        }
+        break;
+
+    case WM_ACTIVATEAPP:
+        if (w_param == FALSE && !bPauseOnFocusLoss) {
+            return 0;
+        }
+        break;
+
+    case WM_IME_SETCONTEXT:
+        if (w_param == FALSE && !bPauseOnFocusLoss) {
+            return 0;
+        }
+        break;
+
     case WM_SYSCOMMAND:
         switch (w_param) {
             // Disable screensaver/monitor sleep
@@ -300,6 +323,7 @@ LRESULT __stdcall NewWndProc(HWND window, UINT message_type, WPARAM w_param, LPA
             }
         }
         break;
+
     case WM_CLOSE:
         if (!bCatchAltF4) {
             // Return default WndProc
