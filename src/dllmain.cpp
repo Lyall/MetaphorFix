@@ -602,6 +602,7 @@ void HUD()
         else if (!Backgrounds2ScanResult) {
             spdlog::error("HUD: Backgrounds: 2: Pattern scan failed.");
         }
+
         /*
         // HUD Offset 
         uint8_t* HUDOffset1ScanResult = Memory::PatternScan(baseModule, "F2 41 ?? ?? ?? ?? ?? ?? ?? 4C ?? ?? ?? ?? ?? ?? 0F 28 ?? ?? ?? ?? ?? 48 8D ?? ?? ?? ?? ??");
@@ -898,19 +899,20 @@ DWORD __stdcall Main(void*)
     return true;
 }
 
-BOOL APIENTRY DllMain(HMODULE hModule,
-    DWORD  ul_reason_for_call,
-    LPVOID lpReserved
-    )
+BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReserved)
 {
-    switch (ul_reason_for_call)
-    {
-    case DLL_PROCESS_ATTACH:
-    {
+    switch (ul_reason_for_call) {
+    case DLL_PROCESS_ATTACH: {
+        // Detach from "crash_handler.exe"
+        char exeName[MAX_PATH];
+        GetModuleFileNameA(NULL, exeName, MAX_PATH);
+        std::string exeStr(exeName);
+        if (exeStr.find("crash_handler.exe") != std::string::npos)
+            return FALSE;
+
         thisModule = hModule;
         HANDLE mainHandle = CreateThread(NULL, 0, Main, 0, CREATE_SUSPENDED, 0);
-        if (mainHandle)
-        {
+        if (mainHandle) {
             SetThreadPriority(mainHandle, THREAD_PRIORITY_TIME_CRITICAL);
             ResumeThread(mainHandle);
             CloseHandle(mainHandle);
