@@ -40,6 +40,7 @@ float fLODDistance = 10.00f;
 bool bFixAnalog;
 float fCustomResScale = 1.00f;
 bool bDisableOutlines;
+int iShadowResolution = 2048;
 
 // Aspect ratio + HUD stuff
 float fPi = (float)3.141592653;
@@ -252,6 +253,14 @@ void Configuration()
 
     inipp::get_value(ini.sections["Disable Outlines"], "Enabled", bDisableOutlines);
     spdlog::info("Config Parse: bDisableOutlines: {}", bDisableOutlines);
+
+    inipp::get_value(ini.sections["Shadow Quality"], "Resolution", iShadowResolution);
+    iShadowResolution = ((iShadowResolution + 63) / 64) * 64;
+    if (iShadowResolution < 64 || iShadowResolution > 16384) {
+        iShadowResolution = std::clamp(iShadowResolution, 64, 16384);
+        spdlog::warn("Config Parse: iShadowResolution value invalid, clamped to {}", iShadowResolution);
+    }
+    spdlog::info("Config Parse: iShadowResolution: {}", iShadowResolution);
 
     spdlog::info("----------");
 
@@ -647,6 +656,19 @@ void Graphics()
         }
         else if (!OutlineShaderScanResult) {
             spdlog::error("Outline Shader: Pattern scan failed.");
+        }
+    }
+
+    if (iShadowResolution != 2048) {
+        uint8_t * ShadowResolutionScanResult = Memory::PatternScan(baseModule, "C7 ?? ?? 00 08 00 00 C7 ?? ?? 00 08 00 00 C7 ?? ?? ?? ?? ?? ?? C7 ?? ?? 01 00 00 00");
+        if (ShadowResolutionScanResult) {
+            spdlog::info("Shadow Resolution: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ShadowResolutionScanResult - (uintptr_t)baseModule);
+            Memory::Write((uintptr_t)ShadowResolutionScanResult + 0x3, iShadowResolution);
+            Memory::Write((uintptr_t)ShadowResolutionScanResult + 0xA, iShadowResolution);
+            spdlog::info("Shadow Resolution: Patched instruction.");
+        }
+        else if (!ShadowResolutionScanResult) {
+            spdlog::error("Shadow Resolution: Pattern scan failed.");
         }
     }
 }
