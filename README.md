@@ -2,18 +2,18 @@
 [![Patreon-Button](https://github.com/user-attachments/assets/0468283d-b663-4820-b0f5-40e41d96832c)](https://www.patreon.com/Wintermance) [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/W7W01UAI9) <br />
 [![Github All Releases](https://img.shields.io/github/downloads/Lyall/MetaphorFix/total.svg)](https://github.com/Lyall/MetaphorFix/releases)
 
-This is a work-in-progress fix for the Metaphor: ReFantazio demo that adds ultrawide/narrower support and more.
+This is a fix for the Metaphor: ReFantazio demo that adds ultrawide/narrower support and much more.
 
 ### 🚩Currently this fix only supports the DEMO version.
 
 ## Features
 ### General
 - Intro skip.
-- Adjust gameplay FOV.
-- Disable pause when game loses focus.
-- Disable ALT+F4/exit handler.
+- Disabled ALT+F4/exit handler.
 - Remove 60fps cap in menus.
 - Fix 8-way analog movement.
+- Custom resolution scale.
+- Adjust resolution of ambient occlusion.
 
 ### Ultrawide/narrower
 - Support for any resolution/aspect ratio.
@@ -44,7 +44,6 @@ This is a work-in-progress fix for the Metaphor: ReFantazio demo that adds ultra
 Please report any issues you see.
 This list will contain bugs which may or may not be fixed.
 
-- HUD fix is very much a work in progress right now and causes many issues. If you enable it, expect to see bugs.
 
 ## Screenshots
 | ![ezgif-4-30ce77eaf8](https://github.com/user-attachments/assets/a8d2c026-1992-4c79-b5a4-edb603cc833f) |
