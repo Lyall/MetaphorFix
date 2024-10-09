@@ -660,15 +660,26 @@ void Graphics()
     }
 
     if (iShadowResolution != 2048) {
-        uint8_t * ShadowResolutionScanResult = Memory::PatternScan(baseModule, "C7 ?? ?? 00 08 00 00 C7 ?? ?? 00 08 00 00 C7 ?? ?? ?? ?? ?? ?? C7 ?? ?? 01 00 00 00");
-        if (ShadowResolutionScanResult) {
-            spdlog::info("Shadow Resolution: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ShadowResolutionScanResult - (uintptr_t)baseModule);
+        uint8_t* ShadowResolutionScanResult = Memory::PatternScan(baseModule, "C7 ?? ?? 00 08 00 00 C7 ?? ?? 00 08 00 00 C7 ?? ?? ?? ?? ?? ?? C7 ?? ?? 01 00 00 00");
+        uint8_t* ShadowTexShiftScanResult = Memory::PatternScan(baseModule, "41 ?? ?? 48 ?? ?? ?? 48 ?? ?? FF ?? ?? ?? ?? ?? 48 ?? ?? ?? ?? ?? ?? 4C ?? ?? ?? ?? ");
+        if (ShadowResolutionScanResult && ShadowTexShiftScanResult) {
+            // TODO: CSM split adjustment?
+            spdlog::info("Shadow Quality: Resolution: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ShadowResolutionScanResult - (uintptr_t)baseModule);
             Memory::Write((uintptr_t)ShadowResolutionScanResult + 0x3, iShadowResolution);
             Memory::Write((uintptr_t)ShadowResolutionScanResult + 0xA, iShadowResolution);
-            spdlog::info("Shadow Resolution: Patched instruction.");
+            spdlog::info("Shadow Quality: Resolution: Patched instruction.");
+
+            spdlog::info("Shadow Quality: ShadowTexShift: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ShadowTexShiftScanResult - (uintptr_t)baseModule);
+            static SafetyHookMid ShadowTexShiftMidHook{};
+            ShadowTexShiftMidHook = safetyhook::create_mid(ShadowTexShiftScanResult,
+                [](SafetyHookContext& ctx) {
+                    // Default = 1.00f / 2048 (0.00048828125f)
+                    // If this isn't adjusted then shadows can look offset and artifacty
+                    ctx.xmm3.f32[0] = (float)1.00f / iShadowResolution;
+                });
         }
-        else if (!ShadowResolutionScanResult) {
-            spdlog::error("Shadow Resolution: Pattern scan failed.");
+        else if (!ShadowResolutionScanResult || !ShadowTexShiftScanResult) {
+            spdlog::error("Shadow Quality: Pattern scan(s) failed.");
         }
     }
 }
