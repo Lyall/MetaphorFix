@@ -24,6 +24,7 @@ This is a fix for the Metaphor: ReFantazio demo that adds ultrawide/narrower sup
 - Disable dash blur + speed lines.
 - Adjust ambient occlusion resolution.
 - Adjust level of detail distance.
+- Disable black outlines.
 
 ## Installation
 - Grab the latest release of MetaphorFix from [here.](https://github.com/Lyall/MetaphorFix/releases)
