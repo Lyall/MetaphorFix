@@ -29,12 +29,9 @@ std::pair DesktopDimensions = { 0,0 };
 bool bFixResolution;
 bool bFixAspect;
 bool bFixFOV;
-bool bFixHUD;
 bool bFixMovies;
 bool bIntroSkip;
 bool bSkipMovie;
-bool bPauseOnFocusLoss;
-bool bCatchAltF4;
 bool bFixFPSCap;
 bool bDisableDashBlur;
 float fAOResolutionScale = 1.00f;
@@ -215,9 +212,6 @@ void Configuration()
     inipp::get_value(ini.sections["Fix FOV"], "Enabled", bFixFOV);
     spdlog::info("Config Parse: bFixFOV: {}", bFixFOV);
 
-    inipp::get_value(ini.sections["Fix HUD"], "Enabled", bFixHUD);
-    spdlog::info("Config Parse: bFixHUD: {}", bFixHUD);
-
     inipp::get_value(ini.sections["Fix Movies"], "Enabled", bFixMovies);
     spdlog::info("Config Parse: bFixMovies: {}", bFixMovies);
 
@@ -225,18 +219,6 @@ void Configuration()
     inipp::get_value(ini.sections["Intro Skip"], "SkipMovie", bSkipMovie);
     spdlog::info("Config Parse: bIntroSkip: {}", bIntroSkip);
     spdlog::info("Config Parse: bSkipMovie: {}", bSkipMovie);
-
-    inipp::get_value(ini.sections["Gameplay FOV"], "Multiplier", fGameplayFOVMulti);
-    if (fGameplayFOVMulti < 0.10f || fGameplayFOVMulti > 3.00f) {
-        fGameplayFOVMulti = std::clamp(fGameplayFOVMulti, 0.10f, 3.00f);
-        spdlog::warn("Config Parse: fGameplayFOVMulti value invalid, clamped to {}", fGameplayFOVMulti);
-    }
-    spdlog::info("Config Parse: fGameplayFOVMulti: {}", fGameplayFOVMulti);
-
-    inipp::get_value(ini.sections["Game Window"], "PauseOnFocusLoss", bPauseOnFocusLoss);
-    inipp::get_value(ini.sections["Game Window"], "CatchAltF4", bCatchAltF4);
-    spdlog::info("Config Parse: bPauseOnFocusLoss: {}", bPauseOnFocusLoss);
-    spdlog::info("Config Parse: bCatchAltF4: {}", bCatchAltF4);
 
     inipp::get_value(ini.sections["Fix Framerate Cap"], "Enabled", bFixFPSCap);
     spdlog::info("Config Parse: bFixFPSCap: {}", bFixFPSCap);
@@ -283,40 +265,9 @@ void Configuration()
 WNDPROC OldWndProc;
 LRESULT __stdcall NewWndProc(HWND window, UINT message_type, WPARAM w_param, LPARAM l_param) {
     switch (message_type) {
-    case WM_NCACTIVATE:
-        if (w_param == FALSE && !bPauseOnFocusLoss) {
-            return 0;
-        }
-        break;
-
-    case WM_ACTIVATE:
-        if (w_param == WA_INACTIVE && !bPauseOnFocusLoss) {
-            return 0;
-        }
-        break;
-
-    case WM_KILLFOCUS:
-        if (!bPauseOnFocusLoss) {
-            return 0;
-        }
-        break;
-
-    case WM_ACTIVATEAPP:
-        if (w_param == FALSE && !bPauseOnFocusLoss) {
-            return 0;
-        }
-        break;
-
-    case WM_IME_SETCONTEXT:
-        if (w_param == FALSE && !bPauseOnFocusLoss) {
-            return 0;
-        }
-        break;
-
     case WM_SYSCOMMAND:
         switch (w_param) {
-            // Disable screensaver/monitor sleep
-            case SC_SCREENSAVE:
+            case SC_SCREENSAVE: // Disable screensaver/monitor sleep
             case SC_MONITORPOWER: {
                 if (l_param != -1)
                     return TRUE;
@@ -325,11 +276,7 @@ LRESULT __stdcall NewWndProc(HWND window, UINT message_type, WPARAM w_param, LPA
         break;
 
     case WM_CLOSE:
-        if (!bCatchAltF4) {
-            // Return default WndProc
-            return DefWindowProc(window, message_type, w_param, l_param);
-        }
-        break;
+        return DefWindowProc(window, message_type, w_param, l_param); // Return default WndProc
     }
 
     // Return old WndProc
@@ -506,215 +453,10 @@ void AspectRatioFOV()
             spdlog::error("FOV: Global: Pattern scan failed.");
         }
     }
-
-    if (fGameplayFOVMulti != 1.00f) {
-        // Gameplay FOV
-        uint8_t* GameplayFOVScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? ?? ?? ?? ?? 48 ?? ?? E8 ?? ?? ?? ?? C7 ?? ?? 09 00 00 00 E9 ?? ?? ?? ??");
-        if (GameplayFOVScanResult) {
-            spdlog::info("FOV: Gameplay: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)GameplayFOVScanResult - (uintptr_t)baseModule);
-            uintptr_t GameplayFOVFunctionAddr = Memory::GetAbsolute((uintptr_t)GameplayFOVScanResult + 0xC);
-            spdlog::info("FOV: Gameplay: Function address is {:s}+{:x}", sExeName.c_str(), GameplayFOVFunctionAddr - (uintptr_t)baseModule);
-
-            static SafetyHookMid GameplayFOVMidHook{};
-            GameplayFOVMidHook = safetyhook::create_mid(GameplayFOVFunctionAddr,
-                [](SafetyHookContext& ctx) {
-                    ctx.xmm1.f32[0] *= fGameplayFOVMulti;
-                });
-        }
-        else if (!GameplayFOVScanResult) {
-            spdlog::error("FOV: Gameplay: Pattern scan failed.");
-        }
-    }
 }
 
 void HUD() 
 {
-    if (bFixHUD) {
-        // HUD Size
-        uint8_t* HUDWidthScanResult = Memory::PatternScan(baseModule, "F3 0F ?? ?? ?? ?? ?? ?? E8 ?? ?? ?? ?? F3 0F ?? ?? 66 0F ?? ?? 0F ?? ?? F3 0F ?? ??");
-        if (HUDWidthScanResult) {
-            spdlog::info("HUD: Size: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)HUDWidthScanResult - (uintptr_t)baseModule);
-            static SafetyHookMid HUDWidthMidHook{};
-            HUDWidthMidHook = safetyhook::create_mid(HUDWidthScanResult + 0xD,
-                [](SafetyHookContext& ctx) {
-                    if (fAspectRatio > fNativeAspect)
-                        ctx.xmm6.f32[0] = (float)iCurrentResX / (2160.00f * fAspectRatio);
-                });
-
-            static SafetyHookMid HUDHeightMidHook{};
-            HUDHeightMidHook = safetyhook::create_mid(HUDWidthScanResult + 0x24,
-                [](SafetyHookContext& ctx) {
-                    if (fAspectRatio < fNativeAspect)
-                        ctx.xmm0.f32[0] = (float)iCurrentResY / (3840.00f / fAspectRatio);
-                });
-        }
-        else if (!HUDWidthScanResult) {
-            spdlog::error("HUD: Size: Pattern scan failed.");
-        }
-
-        // Fades
-        uint8_t* FadesScanResult = Memory::PatternScan(baseModule, "F3 0F ?? ?? ?? ?? ?? ?? 0F ?? ?? ?? ?? ?? ?? 89 ?? ?? 0F ?? ?? ?? ?? ?? ?? C1 ?? 08");
-        if (FadesScanResult) {
-            spdlog::info("HUD: Fades: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)FadesScanResult - (uintptr_t)baseModule);
-            static SafetyHookMid FadesMidHook{};
-            FadesMidHook = safetyhook::create_mid(FadesScanResult,
-                [](SafetyHookContext& ctx) {
-                    if (ctx.rbx + 0x64) {
-                        if (*reinterpret_cast<float*>(ctx.rbx + 0x64) == 2160.00f && *reinterpret_cast<float*>(ctx.rbx + 0x80) == 3840.00f) {
-                            if (fAspectRatio > fNativeAspect) {
-                                *reinterpret_cast<float*>(ctx.rbx + 0x80) = 2160.00f * fAspectRatio;
-                                *reinterpret_cast<float*>(ctx.rbx + 0xA0) = 2160.00f * fAspectRatio;
-                            }
-                            else if (fAspectRatio < fNativeAspect) {
-                                *reinterpret_cast<float*>(ctx.rbx + 0x64) = 3840.00f / fAspectRatio;
-                                *reinterpret_cast<float*>(ctx.rbx + 0xA4) = 3840.00f / fAspectRatio;
-                            }
-                        }
-                    }
-                });
-        }
-        else if (!FadesScanResult) {
-            spdlog::error("HUD: Fades: Pattern scan failed.");
-        }
-
-        // Backgrounds 1
-        uint8_t* Backgrounds1ScanResult = Memory::PatternScan(baseModule, "F3 0F ?? ?? ?? ?? ?? ?? 0F ?? ?? 66 0F ?? ?? ?? F3 0F ?? ?? ?? ?? 66 0F ?? ?? ??");
-        if (Backgrounds1ScanResult) {
-            spdlog::info("HUD: Backgrounds: 1: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)Backgrounds1ScanResult - (uintptr_t)baseModule);
-            static SafetyHookMid Backgrounds1MidHook{};
-            Backgrounds1MidHook = safetyhook::create_mid(Backgrounds1ScanResult,
-                [](SafetyHookContext& ctx) {
-                    if (ctx.rbx + 0x64) {
-                        if (*reinterpret_cast<float*>(ctx.rbx + 0x64) == 2160.00f && *reinterpret_cast<float*>(ctx.rbx + 0x80) == 3840.00f) {
-                            if (fAspectRatio > fNativeAspect) {
-                                *reinterpret_cast<float*>(ctx.rbx + 0x80) = 2160.00f * fAspectRatio;
-                                *reinterpret_cast<float*>(ctx.rbx + 0xA0) = 2160.00f * fAspectRatio;
-                            }
-                            else if (fAspectRatio < fNativeAspect) {
-                                *reinterpret_cast<float*>(ctx.rbx + 0x64) = 3840.00f / fAspectRatio;
-                                *reinterpret_cast<float*>(ctx.rbx + 0xA4) = 3840.00f / fAspectRatio;
-                            }
-                        }
-                    }
-                });
-        }
-        else if (!Backgrounds1ScanResult) {
-            spdlog::error("HUD: Backgrounds: 1: Pattern scan failed.");
-        }
-
-        // Backgrounds 2
-        uint8_t* Backgrounds2ScanResult = Memory::PatternScan(baseModule, "F3 0F ?? ?? ?? ?? ?? ?? 0F ?? ?? 66 0F ?? ?? ?? F3 0F ?? ?? ?? ?? 66 0F ?? ?? ??");
-        if (Backgrounds2ScanResult) {
-            spdlog::info("HUD: Backgrounds: 2: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)Backgrounds2ScanResult - (uintptr_t)baseModule);
-            static SafetyHookMid Backgrounds2MidHook{};
-            Backgrounds2MidHook = safetyhook::create_mid(Backgrounds2ScanResult,
-                [](SafetyHookContext& ctx) {
-                    if (ctx.rbx + 0x64) {
-                        if (*reinterpret_cast<float*>(ctx.rbx + 0x64) == 2160.00f && *reinterpret_cast<float*>(ctx.rbx + 0x80) == 3840.00f) {
-                            if (fAspectRatio > fNativeAspect) {
-                                *reinterpret_cast<float*>(ctx.rbx + 0x80) = 2160.00f * fAspectRatio;
-                                *reinterpret_cast<float*>(ctx.rbx + 0xA0) = 2160.00f * fAspectRatio;
-                            }
-                            else if (fAspectRatio < fNativeAspect) {
-                                *reinterpret_cast<float*>(ctx.rbx + 0x64) = 3840.00f / fAspectRatio;
-                                *reinterpret_cast<float*>(ctx.rbx + 0xA4) = 3840.00f / fAspectRatio;
-                            }
-                        }
-                    }
-                });
-        }
-        else if (!Backgrounds2ScanResult) {
-            spdlog::error("HUD: Backgrounds: 2: Pattern scan failed.");
-        }
-
-        /*
-        // HUD Offset 
-        uint8_t* HUDOffset1ScanResult = Memory::PatternScan(baseModule, "F2 41 ?? ?? ?? ?? ?? ?? ?? 4C ?? ?? ?? ?? ?? ?? 0F 28 ?? ?? ?? ?? ?? 48 8D ?? ?? ?? ?? ??");
-        uint8_t* HUDOffset2ScanResult = Memory::PatternScan(baseModule, "F3 0F ?? ?? 74 ?? ?? ?? F3 0F ?? ?? 78 ?? ?? ?? C3");
-        if (HUDOffset1ScanResult && HUDOffset2ScanResult) {
-            spdlog::info("HUD: Offset: 1: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)HUDOffset1ScanResult - (uintptr_t)baseModule);
-            static SafetyHookMid HUDOffset1MidHook{};
-            HUDOffset1MidHook = safetyhook::create_mid(HUDOffset1ScanResult + 0x9,
-                [](SafetyHookContext& ctx) {
-                    if (ctx.r14 + 0xB6C) {
-                        std::string sElementName = (std::string)(char*)(ctx.r14 + 0x10);
-                        // Check if marked or 0.00f
-                        if ((*reinterpret_cast<int*>(ctx.r14 + 0xB6C) == 42069 || *reinterpret_cast<float*>(ctx.r14 + 0xB74) == 0.00f)
-                            && !sElementName.contains("minimap_icon") ) {
-                            if (fAspectRatio > fNativeAspect)
-                                ctx.xmm2.f32[0] += ((2160.00f * fAspectRatio) - 3840.00f) / 2.00f;
-
-                            if (fAspectRatio < fNativeAspect)
-                                ctx.xmm2.f32[1] += ((3840.00f / fAspectRatio) - 2160.00f) / 2.00f;
-                        }
-                    }   
-                });
-
-            spdlog::info("HUD: Offset: 2: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)HUDOffset2ScanResult - (uintptr_t)baseModule);
-            static SafetyHookMid HUDOffset2MidHook{};
-            HUDOffset2MidHook = safetyhook::create_mid(HUDOffset2ScanResult,
-                [](SafetyHookContext& ctx) {
-                    if (ctx.rcx + 0xB6C) {
-                        // Write marker
-                        *reinterpret_cast<int*>(ctx.rcx + 0xB6C) = 42069;
-                        if (fAspectRatio > fNativeAspect)
-                            ctx.xmm1.f32[0] -= ((2160.00f * fAspectRatio) - 3840.00f) / 2.00f;
-
-                        if (fAspectRatio < fNativeAspect)
-                            ctx.xmm2.f32[0] -= ((3840.00f / fAspectRatio) - 2160.00f) / 2.00f;     
-                    }
-                });
-        }
-        else if (!HUDOffset1ScanResult || !HUDOffset2ScanResult) {     
-            spdlog::error("HUD: Offset: Pattern scan failed.");
-        }
-        */
-        /*
-        // HUD Offset (Alt)
-        uint8_t* HUDOffsetScanResult = Memory::PatternScan(baseModule, "45 ?? ?? 8B ?? ?? 0F ?? ?? ?? ?? 89 ?? ?? 8B ?? ?? ?? 89 ?? ??");
-        if (HUDOffsetScanResult) {
-            spdlog::info("HUD: Offset: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)HUDOffsetScanResult - (uintptr_t)baseModule);
-            static SafetyHookMid HUDOffset1MidHook{};
-            HUDOffset1MidHook = safetyhook::create_mid(HUDOffsetScanResult + 0x3,
-                [](SafetyHookContext& ctx) {
-                        if (ctx.xmm3.f32[0] == 1080 || ctx.xmm14.f32[0] == 1920.00f) {
-                            if (fAspectRatio > fNativeAspect)
-                                ctx.xmm14.f32[0] += ((2160.00f * fAspectRatio) - 3840.00f) / 2.00f;
-                            if (fAspectRatio < fNativeAspect)
-                                ctx.xmm3.f32[0] += ((3840.00f / fAspectRatio) - 2160.00f) / 2.00f;
-                        }
-                });
-        }
-        else if (!HUDOffsetScanResult) {
-            spdlog::error("HUD: Offset: Pattern scan failed.");
-        }
-        */
-
-        // Mouse
-        uint8_t* MouseHorScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? 48 8B ?? ?? ?? C5 ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ??");
-        uint8_t* MouseVertScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? 48 ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ??");
-        if (MouseHorScanResult && MouseVertScanResult) {
-            spdlog::info("HUD: Mouse: Horizontal: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)MouseHorScanResult - (uintptr_t)baseModule);
-            static SafetyHookMid MouseHorMidHook{};
-            MouseHorMidHook = safetyhook::create_mid(MouseHorScanResult,
-                [](SafetyHookContext& ctx) {
-                    if (fAspectRatio > fNativeAspect)
-                        ctx.rax = (int)std::round(fHUDWidth);
-                });
-
-            spdlog::info("HUD: Mouse: Vertical: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)MouseHorScanResult - (uintptr_t)baseModule);
-            static SafetyHookMid MouseVertMidHook{};
-            MouseVertMidHook = safetyhook::create_mid(MouseVertScanResult,
-                [](SafetyHookContext& ctx) {
-                    if (fAspectRatio < fNativeAspect)
-                        ctx.rax = (int)std::round(fHUDHeight);
-                });
-        }
-        else if (!MouseHorScanResult || !MouseVertScanResult) {
-            spdlog::error("HUD: Mouse: Pattern scan(s) failed.");
-        }
-    }
-
     if (bFixMovies) {
         // Movies
         // TPL::movie::MovieSofdecWIN64
