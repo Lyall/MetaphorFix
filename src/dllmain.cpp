@@ -32,7 +32,7 @@ bool bFixFOV;
 bool bFixMovies;
 bool bIntroSkip;
 bool bSkipMovie;
-bool bFixFPSCap;
+bool bMenuFPSCap;
 bool bDisableDashBlur;
 float fAOResolutionScale = 1.00f;
 float fGameplayFOVMulti;
@@ -220,8 +220,8 @@ void Configuration()
     spdlog::info("Config Parse: bIntroSkip: {}", bIntroSkip);
     spdlog::info("Config Parse: bSkipMovie: {}", bSkipMovie);
 
-    inipp::get_value(ini.sections["Fix Framerate Cap"], "Enabled", bFixFPSCap);
-    spdlog::info("Config Parse: bFixFPSCap: {}", bFixFPSCap);
+    inipp::get_value(ini.sections["Menu Framerate Cap"], "Enabled", bMenuFPSCap);
+    spdlog::info("Config Parse: bMenuFPSCap: {}", bMenuFPSCap);
 
     inipp::get_value(ini.sections["Fix Analog Movement"], "Enabled", bFixAnalog);
     spdlog::info("Config Parse: bFixAnalog: {}", bFixAnalog);
@@ -486,7 +486,7 @@ void HUD()
 
 void Misc() 
 {
-    if (bFixFPSCap) {
+    if (bMenuFPSCap) {
         // Fix framerate cap. Stops menus being locked to 60fps with vsync off and other odd behaviour.
         uint8_t* FramerateCapScanResult = Memory::PatternScan(baseModule, "89 ?? ?? ?? ?? ?? 8B ?? C7 ?? ?? ?? ?? ?? ?? ?? 85 ?? 75 ?? 48 ?? ?? ?? ?? ?? ?? 00");
         if (FramerateCapScanResult) {
