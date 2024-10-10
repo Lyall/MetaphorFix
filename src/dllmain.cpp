@@ -661,14 +661,16 @@ void Graphics()
 
     if (iShadowResolution != 2048) {
         uint8_t* ShadowResolutionScanResult = Memory::PatternScan(baseModule, "C7 ?? ?? 00 08 00 00 C7 ?? ?? 00 08 00 00 C7 ?? ?? ?? ?? ?? ?? C7 ?? ?? 01 00 00 00");
-        uint8_t* ShadowTexShiftScanResult = Memory::PatternScan(baseModule, "41 ?? ?? 48 ?? ?? ?? 48 ?? ?? FF ?? ?? ?? ?? ?? 48 ?? ?? ?? ?? ?? ?? 4C ?? ?? ?? ?? ");
-        if (ShadowResolutionScanResult && ShadowTexShiftScanResult) {
-            // TODO: CSM split adjustment?
+        uint8_t* ShadowTexShiftScanResult = Memory::PatternScan(baseModule, "41 ?? ?? 48 ?? ?? ?? 48 ?? ?? FF ?? ?? ?? ?? ?? 48 ?? ?? ?? ?? ?? ?? 4C ?? ?? ?? ??");
+        uint8_t* CSMSplitsScanResult = Memory::PatternScan(baseModule, "8B ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? C4 ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? 48 ?? ?? ??");
+        if (ShadowResolutionScanResult && ShadowTexShiftScanResult && CSMSplitsScanResult) {
+            // Set shadowmap resolution
             spdlog::info("Shadow Quality: Resolution: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ShadowResolutionScanResult - (uintptr_t)baseModule);
             Memory::Write((uintptr_t)ShadowResolutionScanResult + 0x3, iShadowResolution);
             Memory::Write((uintptr_t)ShadowResolutionScanResult + 0xA, iShadowResolution);
             spdlog::info("Shadow Quality: Resolution: Patched instruction.");
 
+            // Set shadowTexShift property to account for increased/decreased shadowmap resolution
             spdlog::info("Shadow Quality: ShadowTexShift: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ShadowTexShiftScanResult - (uintptr_t)baseModule);
             static SafetyHookMid ShadowTexShiftMidHook{};
             ShadowTexShiftMidHook = safetyhook::create_mid(ShadowTexShiftScanResult,
@@ -677,8 +679,17 @@ void Graphics()
                     // If this isn't adjusted then shadows can look offset and artifacty
                     ctx.xmm3.f32[0] = (float)1.00f / iShadowResolution;
                 });
+
+            // Adjust CSM split distances
+            // TODO: Is this the right way of scaling up split distances? Should they even be adjusted?
+            spdlog::info("Shadow Quality: CSM Splits: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)CSMSplitsScanResult - (uintptr_t)baseModule);
+            static SafetyHookMid CSMSplitsMidHook{};
+            CSMSplitsMidHook = safetyhook::create_mid(CSMSplitsScanResult,
+                [](SafetyHookContext& ctx) {
+                    ctx.xmm12.f32[0] = ctx.xmm12.f32[0] * (1 + std::log((float)iShadowResolution / 2048.00f));
+                  });
         }
-        else if (!ShadowResolutionScanResult || !ShadowTexShiftScanResult) {
+        else if (!ShadowResolutionScanResult || !ShadowTexShiftScanResult || !CSMSplitsScanResult) {
             spdlog::error("Shadow Quality: Pattern scan(s) failed.");
         }
     }
