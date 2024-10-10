@@ -35,7 +35,7 @@ bool bSkipMovie;
 bool bMenuFPSCap;
 bool bDisableDashBlur;
 float fAOResolutionScale = 1.00f;
-float fGameplayFOVMulti;
+float fGameplayFOVMulti = 1.00f;
 float fLODDistance = 10.00f;
 bool bFixAnalog;
 float fCustomResScale = 1.00f;
@@ -229,6 +229,13 @@ void Configuration()
 
     inipp::get_value(ini.sections["Disable Dash Blur"], "Enabled", bDisableDashBlur);
     spdlog::info("Config Parse: bDisableDashBlur: {}", bDisableDashBlur);
+
+    inipp::get_value(ini.sections["Gameplay FOV"], "Multiplier", fGameplayFOVMulti);
+    if (fGameplayFOVMulti < 0.10f || fGameplayFOVMulti > 3.00f) {
+        fGameplayFOVMulti = std::clamp(fGameplayFOVMulti, 0.10f, 3.00f);
+        spdlog::warn("Config Parse: fGameplayFOVMulti value invalid, clamped to {}", fGameplayFOVMulti);
+    }
+    spdlog::info("Config Parse: fGameplayFOVMulti: {}", fGameplayFOVMulti);
 
     inipp::get_value(ini.sections["Ambient Occlusion"], "Resolution", fAOResolutionScale);
     if (fAOResolutionScale < 0.10f || fAOResolutionScale > 1.00f) {
@@ -462,6 +469,24 @@ void AspectRatioFOV()
             spdlog::error("FOV: Global: Pattern scan failed.");
         }
     }
+
+    if (fGameplayFOVMulti != 1.00f) {
+        // Gameplay FOV
+        uint8_t* GameplayFOVScanResult = Memory::PatternScan(baseModule, "45 ?? ?? 48 ?? ?? C4 ?? ?? ?? ?? E8 ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? C4 ?? ?? ?? ?? C5 ?? ?? ??");
+        if (GameplayFOVScanResult) {
+            spdlog::info("FOV: Gameplay: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)GameplayFOVScanResult - (uintptr_t)baseModule);
+            uintptr_t GameplayFOVFunctionAddr = Memory::GetAbsolute((uintptr_t)GameplayFOVScanResult + 0xC);
+            spdlog::info("FOV: Gameplay: Function address is {:s}+{:x}", sExeName.c_str(), GameplayFOVFunctionAddr - (uintptr_t)baseModule);
+            static SafetyHookMid GameplayFOVMidHook{};
+            GameplayFOVMidHook = safetyhook::create_mid(GameplayFOVFunctionAddr,
+                [](SafetyHookContext& ctx) {
+                    ctx.xmm1.f32[0] *= fGameplayFOVMulti;
+                });
+        }
+        else if (!GameplayFOVScanResult) {
+            spdlog::error("FOV: Gameplay: Pattern scan failed.");
+        }
+    }
 }
 
 void HUD() 
@@ -681,7 +706,7 @@ void Graphics()
                 });
 
             // Adjust CSM split distances
-            // TODO: Is this the right way of scaling up split distances? Should they even be adjusted?
+            // TODO: Is this the right way of scaling CSM split distances? Should they even be adjusted?
             spdlog::info("Shadow Quality: CSM Splits: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)CSMSplitsScanResult - (uintptr_t)baseModule);
             static SafetyHookMid CSMSplitsMidHook{};
             CSMSplitsMidHook = safetyhook::create_mid(CSMSplitsScanResult,
