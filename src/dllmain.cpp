@@ -346,7 +346,7 @@ void IntroSkip()
 {
     if (bIntroSkip) {
         // Intro Skip
-        uint8_t* IntroSkipScanResult = Memory::PatternScan(baseModule, "83 ?? 49 0F 87 ?? ?? ?? ?? 48 8D ?? ?? ?? ?? ?? 8B ?? ?? ?? ?? ?? ?? 48 ?? ??");
+        uint8_t* IntroSkipScanResult = Memory::PatternScan(baseModule, "83 ?? ?? 0F 87 ?? ?? ?? ?? 48 ?? ?? ?? ?? ?? ?? 8B ?? ?? ?? ?? ?? ?? 48 ?? ?? FF ?? BA 01 00 00 00 48 ?? ?? E8 ?? ?? ?? ?? 48 ?? ?? ?? ?? ?? ??");
         if (IntroSkipScanResult) {
             spdlog::info("Intro Skip: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)IntroSkipScanResult - (uintptr_t)baseModule);
             static SafetyHookMid IntroSkipMidHook{};
@@ -355,30 +355,22 @@ void IntroSkip()
                     int iTitleState = (int)ctx.rax;
 
                     // Title States
-                    // 0x11 - 0x1E = OOBE
-                    // 0x1F = Autosave dialog
-                    // 0x21 = Unauthorized reproduction warning
-                    // 0x2A = Atlus logo
-                    // 0x2B = Studio Zero logo
-                    // 0x31 = Middleware logo
-                    // 0x36 = Opening movie
-                    // 0x3A = Demo message
-                    // 0x3F = Main menu
-
-                    // Check if at autosave dialog
-                    if (iTitleState == 0x1F) {
-                        // Skip to pre-Atlus logo
-                        ctx.rax = 0x27;
-                    }
-
+                    // 0x0 - 0x2F = OOBE
+                    // 0x30 = Atlus Logo
+                    // 0x31 = Studio Zero Logo
+                    // 0x37 = Middleware
+                    // 0x3C = Opening Movie
+                    // 0x40 = Attract Movie
+                    // 0x43 = Press Any Key
+                    
                     // Check if at Atlus logo
-                    if (iTitleState == 0x2A) {            
+                    if (iTitleState == 0x30) {            
                         // Skip to main menu
-                        ctx.rax = 0x3F;
+                        ctx.rax = 0x43;
 
                         if (!bSkipMovie) {
                             // Skip to opening movie instead
-                            ctx.rax = 0x36;
+                            ctx.rax = 0x3C;
                         }
                     }    
                 });
