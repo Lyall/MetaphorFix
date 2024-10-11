@@ -48,7 +48,7 @@ This list will contain bugs which may or may not be fixed.
 - When using the HUD fix, some 3D menu elements may appear too large.
 
 ## Screenshots
-| ![ezgif-4-30ce77eaf8](https://github.com/user-attachments/assets/a8d2c026-1992-4c79-b5a4-edb603cc833f) |
+| ![ezgif-7-f7f2cd227e](https://github.com/user-attachments/assets/b3fa0f83-4c51-4e06-908b-81288c2f6957) |
 |:--:|
 | Gameplay |
 
