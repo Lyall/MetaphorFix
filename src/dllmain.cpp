@@ -630,26 +630,6 @@ void HUD()
         else if (!ScreenPosHorScanResult) {
             spdlog::error("HUD: ScreenPos: Pattern scan failed.");
         }
-
-        // HUD Camera
-        // TODO: Come up with a better fix for this issue.
-        uint8_t* HUDCameraScanResult = Memory::PatternScan(baseModule, "33 ?? C7 ?? ?? ?? ?? ?? 00 00 80 BF C4 ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ??");
-        if (HUDCameraScanResult) {
-            spdlog::info("HUD: Camera: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)HUDCameraScanResult - (uintptr_t)baseModule);
-            static SafetyHookMid HUDCameraMidHook{};
-            HUDCameraMidHook = safetyhook::create_mid(HUDCameraScanResult + 0xC,
-                [](SafetyHookContext& ctx) {
-                    if (ctx.rbx + 0x8C) {
-                        // Jank solution
-                        if (*reinterpret_cast<float*>(ctx.rbx + 0x188) == 60000.00f) {
-                            *reinterpret_cast<float*>(ctx.rbx + 0x8C) = -2.00f;
-                        }
-                    }
-                });
-        }
-        else if (!HUDCameraScanResult) {
-            spdlog::error("HUD: Camera: Pattern scan failed.");
-        }
     }   
 
     if (bFixMovies) {
@@ -817,18 +797,26 @@ void Graphics()
     if (fLODDistance != 10.00f) {
         // LOD Distance
         uint8_t* LODDistanceScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? ?? ?? ? ?? C5 ?? ?? ?? ?? ?? 73 ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? 72 ?? C5 ?? ?? ?? ?? 73 ??");
-        if (LODDistanceScanResult) {
-            spdlog::info("LOD Distance: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)LODDistanceScanResult - (uintptr_t)baseModule);
+        uint8_t* FoliageDistanceScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? 73 ?? C5 ?? ?? ?? EB ?? C5 ?? ?? ?? ?? ?? ?? ?? EB ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? 77 ??");
+        if (LODDistanceScanResult && FoliageDistanceScanResult) {
+            spdlog::info("LOD: Distance: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)LODDistanceScanResult - (uintptr_t)baseModule);
             LODDistanceAddr = Memory::GetAbsolute((uintptr_t)LODDistanceScanResult + 0x4);
-            spdlog::info("LOD Distance: Value address is {:s}+{:x}", sExeName.c_str(), LODDistanceAddr - (uintptr_t)baseModule);
+            spdlog::info("LOD: Distance: Value address is {:s}+{:x}", sExeName.c_str(), LODDistanceAddr - (uintptr_t)baseModule);
 
             // Big number scary
-            float fRealLODDistance = fLODDistance * 1000.00f;
+            static float fRealLODDistance = fLODDistance * 1000.00f;
             // This value can be modified directly since it's only accessed by one function. 
             Memory::Write(LODDistanceAddr, fRealLODDistance);
+
+            spdlog::info("LOD: Foliage: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)FoliageDistanceScanResult - (uintptr_t)baseModule);
+            static SafetyHookMid FoliageDistanceMidHook{};
+            FoliageDistanceMidHook = safetyhook::create_mid(FoliageDistanceScanResult,
+                [](SafetyHookContext& ctx) {
+                    ctx.xmm0.f32[0] = fRealLODDistance; // Default is 5000
+                });
         }
-        else if (!LODDistanceScanResult) {
-            spdlog::error("LOD Distance: Pattern scan failed.");
+        else if (!LODDistanceScanResult || !FoliageDistanceScanResult) {
+            spdlog::error("LOD: Pattern scan(s) failed.");
         }
     }
 
