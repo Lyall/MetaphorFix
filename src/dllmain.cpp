@@ -523,13 +523,6 @@ void HUD()
     }
 
     if (bFixHUD) {
-        
-        /******************************************
-        * HUD TODO:
-          Backgrounds at <16:9
-          Screen pos at <16:9
-        ******************************************/
-
         // HUD Size
         uint8_t* HUDWidthScanResult = Memory::PatternScan(baseModule, "F3 0F ?? ?? ?? ?? ?? ?? E8 ?? ?? ?? ?? F3 0F ?? ?? 66 0F ?? ?? 0F ?? ?? F3 0F ?? ??");
         if (HUDWidthScanResult) {
@@ -611,7 +604,7 @@ void HUD()
                     if (fAspectRatio > fNativeAspect)
                         ctx.xmm0.f32[0] += ((2160.00f * fAspectRatio) - 3840.00f) / 2.00f;
                     if (fAspectRatio < fNativeAspect)
-                        ctx.xmm0.f32[1] += ((3840.00f / fAspectRatio) - 1920.00f) / 2.00f;
+                        ctx.xmm0.f32[1] += ((3840.00f / fAspectRatio) - 2160.00f) / 2.00f;
                 });
 
             spdlog::info("HUD: Offset: Clipping: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)HUDOffsetClipScanResult - (uintptr_t)baseModule);
@@ -621,7 +614,7 @@ void HUD()
                     if (fAspectRatio > fNativeAspect)
                         ctx.xmm0.f32[0] += ((2160.00f * fAspectRatio) - 3840.00f) / 2.00f;
                     if (fAspectRatio < fNativeAspect)
-                        ctx.xmm0.f32[1] += ((3840.00f / fAspectRatio) - 1920.00f) / 2.00f;
+                        ctx.xmm0.f32[1] += ((3840.00f / fAspectRatio) - 2160.00f) / 2.00f;
                 });
         }
         else if (!HUDOffsetScanResult || !HUDOffsetClipScanResult) {
@@ -630,6 +623,7 @@ void HUD()
 
         // Screen Position
         uint8_t* ScreenPosHorScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? 48 8B ?? ?? ?? C5 ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ??");
+        uint8_t* ScreenPosVertScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? C5 ?? ?? ?? 48 ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ??");
         if (ScreenPosHorScanResult) {
             spdlog::info("HUD: ScreenPos: Horizontal: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ScreenPosHorScanResult - (uintptr_t)baseModule);
             static SafetyHookMid ScreenPosHorMidHook{};
@@ -644,6 +638,21 @@ void HUD()
                 [](SafetyHookContext& ctx) {
                     if (fAspectRatio > fNativeAspect)
                         ctx.xmm0.f32[0] -= (2160.00f * fAspectRatio - 3840.00f) / 2.00f;
+                });
+
+            spdlog::info("HUD: ScreenPos: Vertical: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ScreenPosVertScanResult - (uintptr_t)baseModule);
+            static SafetyHookMid ScreenPosVertMidHook{};
+            ScreenPosVertMidHook = safetyhook::create_mid(ScreenPosVertScanResult,
+                [](SafetyHookContext& ctx) {
+                    if (fAspectRatio < fNativeAspect)
+                        ctx.xmm0.f32[0] = 3840.00f / fAspectRatio;
+                });
+
+            static SafetyHookMid ScreenPosVertOffsetMidHook{};
+            ScreenPosVertOffsetMidHook = safetyhook::create_mid(ScreenPosHorScanResult + 0x11,
+                [](SafetyHookContext& ctx) {
+                    if (fAspectRatio < fNativeAspect)
+                        ctx.xmm8.f32[0] -= (3840.00f / fAspectRatio - 2160.00f) / 2.00f;
                 });
         }
         else if (!ScreenPosHorScanResult) {
