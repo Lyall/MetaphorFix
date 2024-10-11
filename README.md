@@ -28,7 +28,7 @@ This is a fix for Metaphor: ReFantazio that adds ultrawide/narrower support and 
 
 ## Installation
 - Grab the latest release of MetaphorFix from [here.](https://github.com/Lyall/MetaphorFix/releases)
-- Extract the contents of the release zip in to the the game folder. e.g. ("**steamapps\common\Metaphor ReFantazio Demo**" for Steam).
+- Extract the contents of the release zip in to the the game folder. e.g. ("**steamapps\common\METAPHOR**" for Steam).
 
 ### Steam Deck/Linux Additional Instructions
 🚩**You do not need to do this if you are using Windows!**
@@ -45,7 +45,7 @@ This is a fix for Metaphor: ReFantazio that adds ultrawide/narrower support and 
 Please report any issues you see.
 This list will contain bugs which may or may not be fixed.
 
-- When using the HUD fix some 3D menu elements may appear to be too large.
+- When using the HUD fix, some 3D menu elements may appear too large.
 
 ## Screenshots
 | ![ezgif-4-30ce77eaf8](https://github.com/user-attachments/assets/a8d2c026-1992-4c79-b5a4-edb603cc833f) |
