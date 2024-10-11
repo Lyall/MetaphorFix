@@ -630,6 +630,31 @@ void HUD()
         else if (!ScreenPosHorScanResult) {
             spdlog::error("HUD: ScreenPos: Pattern scan failed.");
         }
+
+        // Adjust individual HUD element sizes
+        uint8_t* ElementSizeScanResult = Memory::PatternScan(baseModule, "45 ?? ?? 8B ?? ?? 0F ?? ?? ?? ?? 89 ?? ?? 8B ?? ?? ?? 89 ?? ??");
+        if (ElementSizeScanResult) {
+            spdlog::info("HUD: Element Size: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ElementSizeScanResult - (uintptr_t)baseModule);
+            static SafetyHookMid ElementSize1MidHook{};
+            ElementSize1MidHook = safetyhook::create_mid(ElementSizeScanResult + 0x3,
+                [](SafetyHookContext& ctx) {
+                    if (ctx.r8 + 0x18) {
+                        // Cinematic letterboxing                   top                             bottom
+                        if (ctx.xmm14.f32[0] == 1920.00f && (ctx.xmm3.f32[0] == 1898.00f || ctx.xmm3.f32[0] == 262.00f))
+                        {
+                            if (fAspectRatio > fNativeAspect) {
+                                ctx.xmm6.f32[0] *= fAspectMultiplier;
+                            }
+                            else if (fAspectRatio < fNativeAspect) {
+                                ctx.xmm5.f32[0] /= fAspectMultiplier;
+                            }
+                        }
+                    }
+                });
+        }
+        else if (!ElementSizeScanResult) {
+            spdlog::error("HUD: Element Size: Pattern scan failed.");
+        }
     }   
 
     if (bFixMovies) {
