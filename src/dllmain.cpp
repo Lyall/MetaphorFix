@@ -650,6 +650,26 @@ void HUD()
         else if (!ScreenPosHorScanResult) {
             spdlog::error("HUD: ScreenPos: Pattern scan failed.");
         }
+
+        // HUD Camera
+        // TODO: Come up with a better fix for this issue.
+        uint8_t* HUDCameraScanResult = Memory::PatternScan(baseModule, "33 ?? C7 ?? ?? ?? ?? ?? 00 00 80 BF C4 ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ??");
+        if (HUDCameraScanResult) {
+            spdlog::info("HUD: Camera: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)HUDCameraScanResult - (uintptr_t)baseModule);
+            static SafetyHookMid HUDCameraMidHook{};
+            HUDCameraMidHook = safetyhook::create_mid(HUDCameraScanResult + 0xC,
+                [](SafetyHookContext& ctx) {
+                    if (ctx.rbx + 0x8C) {
+                        // Jank solution
+                        if (*reinterpret_cast<float*>(ctx.rbx + 0x188) == 60000.00f) {
+                            *reinterpret_cast<float*>(ctx.rbx + 0x8C) = -2.00f;
+                        }
+                    }
+                });
+        }
+        else if (!HUDCameraScanResult) {
+            spdlog::error("HUD: Camera: Pattern scan failed.");
+        }
     }   
 }
 
