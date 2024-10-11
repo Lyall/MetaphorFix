@@ -488,32 +488,6 @@ void AspectRatioFOV()
 
 void HUD() 
 {
-    if (bFixMovies) {
-        // Movies
-        // TPL::movie::MovieSofdecWIN64
-        uint8_t* MoviesScanResult = Memory::PatternScan(baseModule, "8B ?? ?? 48 ?? ?? ?? 48 ?? ?? ?? ?? 4C ?? ?? ?? ?? 4C ?? ?? ?? ?? F3 0F ?? ?? ?? ?? E8 ?? ?? ?? ??");
-        if (MoviesScanResult) {
-            spdlog::info("HUD: Movies: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)MoviesScanResult - (uintptr_t)baseModule);
-            static SafetyHookMid MoviesMidHook{};
-            MoviesMidHook = safetyhook::create_mid(MoviesScanResult,
-                [](SafetyHookContext& ctx) {
-                    if (ctx.rsp + 0x30) {
-                        if (fAspectRatio > fNativeAspect) {
-                            *reinterpret_cast<float*>(ctx.rsp + 0x30) = fHUDWidthOffset;
-                            *reinterpret_cast<float*>(ctx.rsp + 0x38) = fHUDWidth;
-                        }
-                        else if (fAspectRatio < fNativeAspect) {
-                            *reinterpret_cast<float*>(ctx.rsp + 0x34) = fHUDHeightOffset;
-                            *reinterpret_cast<float*>(ctx.rsp + 0x3C) = fHUDHeight;
-                        }
-                    }
-                });
-        }
-        else if (!MoviesScanResult) {
-            spdlog::error("HUD: Movies: Pattern scan failed.");
-        }
-    }
-
     if (bFixHUD) {
         // HUD Size
         uint8_t* HUDWidthScanResult = Memory::PatternScan(baseModule, "F3 0F ?? ?? ?? ?? ?? ?? E8 ?? ?? ?? ?? F3 0F ?? ?? 66 0F ?? ?? 0F ?? ?? F3 0F ?? ??");
@@ -544,15 +518,21 @@ void HUD()
             static SafetyHookMid FadesMidHook{};
             FadesMidHook = safetyhook::create_mid(FadesScanResult,
                 [](SafetyHookContext& ctx) {
-                    if (ctx.rbx + 0x64) {
+                    if (ctx.rbx + 0x40) {
                         if (*reinterpret_cast<float*>(ctx.rbx + 0x64) == 2160.00f && *reinterpret_cast<float*>(ctx.rbx + 0x80) == 3840.00f) {
                             if (fAspectRatio > fNativeAspect) {
-                                *reinterpret_cast<float*>(ctx.rbx + 0x80) = 2160.00f * fAspectRatio;
-                                *reinterpret_cast<float*>(ctx.rbx + 0xA0) = 2160.00f * fAspectRatio;
+                                float fWidthOffset = ((2160.00f * fAspectRatio) - 3840.00f) / 2.00f;
+                                *reinterpret_cast<float*>(ctx.rbx + 0x80) = (2160.00f * fAspectRatio) - fWidthOffset;
+                                *reinterpret_cast<float*>(ctx.rbx + 0xA0) = (2160.00f * fAspectRatio) - fWidthOffset;
+                                *reinterpret_cast<float*>(ctx.rbx + 0x40) = -fWidthOffset;
+                                *reinterpret_cast<float*>(ctx.rbx + 0x60) = -fWidthOffset;
                             }
                             else if (fAspectRatio < fNativeAspect) {
-                                *reinterpret_cast<float*>(ctx.rbx + 0x64) = 3840.00f / fAspectRatio;
-                                *reinterpret_cast<float*>(ctx.rbx + 0xA4) = 3840.00f / fAspectRatio;
+                                float fHeightOffset = ((3840.00f / fAspectRatio) - 2160.00f) / 2.00f;
+                                *reinterpret_cast<float*>(ctx.rbx + 0x64) = (3840.00f / fAspectRatio) - fHeightOffset;
+                                *reinterpret_cast<float*>(ctx.rbx + 0xA4) = (3840.00f / fAspectRatio) - fHeightOffset;
+                                *reinterpret_cast<float*>(ctx.rbx + 0x44) = -fHeightOffset;
+                                *reinterpret_cast<float*>(ctx.rbx + 0x84) = -fHeightOffset;
                             }
                         }
                     }
@@ -671,6 +651,32 @@ void HUD()
             spdlog::error("HUD: Camera: Pattern scan failed.");
         }
     }   
+
+    if (bFixMovies) {
+        // Movies
+        // TPL::movie::MovieSofdecWIN64
+        uint8_t* MoviesScanResult = Memory::PatternScan(baseModule, "8B ?? ?? 48 ?? ?? ?? 48 ?? ?? ?? ?? 4C ?? ?? ?? ?? 4C ?? ?? ?? ?? F3 0F ?? ?? ?? ?? E8 ?? ?? ?? ??");
+        if (MoviesScanResult) {
+            spdlog::info("HUD: Movies: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)MoviesScanResult - (uintptr_t)baseModule);
+            static SafetyHookMid MoviesMidHook{};
+            MoviesMidHook = safetyhook::create_mid(MoviesScanResult,
+                [](SafetyHookContext& ctx) {
+                    if (ctx.rsp + 0x30) {
+                        if (fAspectRatio > fNativeAspect) {
+                            *reinterpret_cast<float*>(ctx.rsp + 0x30) = fHUDWidthOffset;
+                            *reinterpret_cast<float*>(ctx.rsp + 0x38) = fHUDWidth;
+                        }
+                        else if (fAspectRatio < fNativeAspect) {
+                            *reinterpret_cast<float*>(ctx.rsp + 0x34) = fHUDHeightOffset;
+                            *reinterpret_cast<float*>(ctx.rsp + 0x3C) = fHUDHeight;
+                        }
+                    }
+                });
+        }
+        else if (!MoviesScanResult) {
+            spdlog::error("HUD: Movies: Pattern scan failed.");
+        }
+    }
 }
 
 void Misc() 
