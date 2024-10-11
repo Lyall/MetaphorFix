@@ -349,6 +349,7 @@ void IntroSkip()
         uint8_t* IntroSkipScanResult = Memory::PatternScan(baseModule, "83 ?? ?? 0F 87 ?? ?? ?? ?? 48 ?? ?? ?? ?? ?? ?? 8B ?? ?? ?? ?? ?? ?? 48 ?? ?? FF ?? BA 01 00 00 00 48 ?? ?? E8 ?? ?? ?? ?? 48 ?? ?? ?? ?? ?? ??");
         if (IntroSkipScanResult) {
             spdlog::info("Intro Skip: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)IntroSkipScanResult - (uintptr_t)baseModule);
+            static bool bHasSkippedIntro = false;
             static SafetyHookMid IntroSkipMidHook{};
             IntroSkipMidHook = safetyhook::create_mid(IntroSkipScanResult,
                 [](SafetyHookContext& ctx) {
@@ -363,16 +364,19 @@ void IntroSkip()
                     // 0x40 = Attract Movie
                     // 0x43 = Press Any Key
                     
-                    // Check if at Atlus logo
-                    if (iTitleState == 0x30) {            
-                        // Skip to main menu
-                        ctx.rax = 0x43;
+                    if (!bHasSkippedIntro && ctx.rcx + 0x8) {
+                        // Check if at Atlus logo
+                        if (iTitleState == 0x30) {
+                            // Skip to main menu
+                            *reinterpret_cast<int*>(ctx.rcx + 0x8) = 0x43;
 
-                        if (!bSkipMovie) {
-                            // Skip to opening movie instead
-                            ctx.rax = 0x3C;
+                            if (!bSkipMovie) {
+                                // Skip to opening movie instead
+                                *reinterpret_cast<int*>(ctx.rcx + 0x8) = 0x3C;
+                            }
+                            bHasSkippedIntro = true;
                         }
-                    }    
+                    }
                 });
         }
         else if (!IntroSkipScanResult) {
