@@ -576,47 +576,27 @@ void HUD()
             spdlog::error("HUD: Fades: Pattern scan failed.");
         }
 
-        // Backgrounds 1
-        uint8_t* Backgrounds1ScanResult = Memory::PatternScan(baseModule, "F3 0F ?? ?? ?? ?? ?? ?? 0F ?? ?? 66 0F ?? ?? ?? F3 0F ?? ?? ?? ?? 66 0F ?? ?? ??");
-        if (Backgrounds1ScanResult) {
-            spdlog::info("HUD: Backgrounds: 1: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)Backgrounds1ScanResult - (uintptr_t)baseModule);
-            static SafetyHookMid Backgrounds1MidHook{};
-            Backgrounds1MidHook = safetyhook::create_mid(Backgrounds1ScanResult,
+        // Pause Screen Capture
+        uint8_t* PauseCaptureScanResult = Memory::PatternScan(baseModule, "48 ?? ?? ?? ?? 48 ?? ?? ?? ?? E8 ?? ?? ?? ?? 48 ?? ?? ?? 5F 5E 5B C3");
+        if (PauseCaptureScanResult) {
+            spdlog::info("HUD: Pause Capture: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)PauseCaptureScanResult - (uintptr_t)baseModule);
+            static SafetyHookMid PauseCaptureMidHook{};
+            PauseCaptureMidHook = safetyhook::create_mid(PauseCaptureScanResult + 0xA,
                 [](SafetyHookContext& ctx) {
-                    // This hook isn't technically necessary. It only exists to make the following pattern scan function.
-                });
-        }
-        else if (!Backgrounds1ScanResult) {
-            spdlog::error("HUD: Backgrounds: 1: Pattern scan failed.");
-        }
-
-        // Backgrounds 2
-        uint8_t* Backgrounds2ScanResult = Memory::PatternScan(baseModule, "F3 0F ?? ?? ?? ?? ?? ?? 0F ?? ?? 66 0F ?? ?? ?? F3 0F ?? ?? ?? ?? 66 0F ?? ?? ??");
-        if (Backgrounds2ScanResult) {
-            spdlog::info("HUD: Backgrounds: 2: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)Backgrounds2ScanResult - (uintptr_t)baseModule);
-            static SafetyHookMid Backgrounds2MidHook{};
-            Backgrounds2MidHook = safetyhook::create_mid(Backgrounds2ScanResult,
-                [](SafetyHookContext& ctx) {
-                    if (ctx.rbx + 0x64) {
-                        // This is just for the screen capture background.
-                        // Also there's a flash as these changes take place, perhaps there is a better way of fixing the screen capture.
-                        if (*reinterpret_cast<int*>(ctx.rbx + 0x8) == 161 && *reinterpret_cast<float*>(ctx.rbx + 0x64) == 2160.00f && *reinterpret_cast<float*>(ctx.rbx + 0x80) == 3840.00f) {
-                            if (fAspectRatio > fNativeAspect) {
-                                float fWidthOffset = ((2160.00f * fAspectRatio) - 3840.00f) / 2.00f;
-                                *reinterpret_cast<float*>(ctx.rbx + 0x80) = (2160.00f * fAspectRatio) - fWidthOffset;
-                                *reinterpret_cast<float*>(ctx.rbx + 0xA0) = (2160.00f * fAspectRatio) - fWidthOffset;
-                                *reinterpret_cast<float*>(ctx.rbx + 0x40) = -fWidthOffset;
-                                *reinterpret_cast<float*>(ctx.rbx + 0x60) = -fWidthOffset;
-                            }
-                            else if (fAspectRatio < fNativeAspect) {
-                                // TODO
-                            }
+                    if (ctx.rsp + 0x60) {
+                        if (fAspectRatio > fNativeAspect) {
+                            *reinterpret_cast<float*>(ctx.rsp + 0x60) = -(((2160.00f * fAspectRatio) - 3840.00f) / 2.00f);
+                            *reinterpret_cast<float*>(ctx.rsp + 0x70) = 2160.00f * fAspectRatio;
+                        }
+                        else if (fAspectRatio < fNativeAspect) {
+                            *reinterpret_cast<float*>(ctx.rsp + 0x64) = -(((3840.00f / fAspectRatio) - 2160.00f) / 2.00f);
+                            *reinterpret_cast<float*>(ctx.rsp + 0x74) = 3840.00f / fAspectRatio;
                         }
                     }
                 });
         }
-        else if (!Backgrounds2ScanResult) {
-            spdlog::error("HUD: Backgrounds: 2: Pattern scan failed.");
+        else if (!PauseCaptureScanResult) {
+            spdlog::error("HUD: Pause Capture: Pattern scan failed.");
         }
 
         // HUD Offset
