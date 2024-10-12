@@ -275,8 +275,8 @@ void Configuration()
     spdlog::info("Config Parse: iShadowResolution: {}", iShadowResolution);
 
     inipp::get_value(ini.sections["Master Volume Override"], "Volume", fMasterVolume);
-    if (fMasterVolume < 0.10f || fMasterVolume > 4.00f) {
-        fMasterVolume = std::clamp(fMasterVolume, 0.10f, 4.00f);
+    if (fMasterVolume < 0.00f || fMasterVolume > 4.00f) {
+        fMasterVolume = std::clamp(fMasterVolume, 0.00f, 4.00f);
         spdlog::warn("Config Parse: fMasterVolume value invalid, clamped to {}", fMasterVolume);
     }
     spdlog::info("Config Parse: fMasterVolume: {}", fMasterVolume);
