@@ -42,6 +42,7 @@ bool bFixAnalog;
 float fCustomResScale = 1.00f;
 bool bDisableOutlines;
 int iShadowResolution = 2048;
+float fMasterVolume = 0.00f;
 
 // Aspect ratio + HUD stuff
 float fPi = (float)3.141592653;
@@ -272,6 +273,13 @@ void Configuration()
         spdlog::warn("Config Parse: iShadowResolution value invalid, clamped to {}", iShadowResolution);
     }
     spdlog::info("Config Parse: iShadowResolution: {}", iShadowResolution);
+
+    inipp::get_value(ini.sections["Master Volume Override"], "Volume", fMasterVolume);
+    if (fMasterVolume < 0.10f || fMasterVolume > 4.00f) {
+        fMasterVolume = std::clamp(fMasterVolume, 0.10f, 4.00f);
+        spdlog::warn("Config Parse: fMasterVolume value invalid, clamped to {}", fMasterVolume);
+    }
+    spdlog::info("Config Parse: fMasterVolume: {}", fMasterVolume);
 
     spdlog::info("----------");
 
@@ -733,6 +741,25 @@ void Misc()
         }
         else if (!XInputGetStateScanResult) {
             spdlog::error("Analog Movement Fix: XInputGetState: Pattern scan failed.");
+        }
+    }
+
+    if (fMasterVolume > 0.00f) {
+        // Master Volume
+        uint8_t* MasterVolumeScanResult = Memory::PatternScan(baseModule, "E8 ?? ?? ?? ?? E9 ?? ?? ?? ?? 8B ?? E8 ?? ?? ?? ?? 89 ?? ?? C7 ?? ?? ?? ?? ?? ??");
+        if (MasterVolumeScanResult) {
+            spdlog::info("Master Volume: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)MasterVolumeScanResult - (uintptr_t)baseModule);
+            uintptr_t MasterVolumeFunctionAddr = Memory::GetAbsolute((uintptr_t)MasterVolumeScanResult + 0x1);
+
+            spdlog::info("Master Volume: Function address is {:s}+{:x}", sExeName.c_str(), MasterVolumeFunctionAddr - (uintptr_t)baseModule);
+            static SafetyHookMid MasterVolumeMidHook{};
+            MasterVolumeMidHook = safetyhook::create_mid(MasterVolumeFunctionAddr,
+                [](SafetyHookContext& ctx) {
+                    ctx.xmm0.f32[0] = fMasterVolume;
+                });
+        }
+        else if (!MasterVolumeScanResult) {
+            spdlog::error("Master Volume: Pattern scan failed.");
         }
     }
 }
