@@ -900,14 +900,16 @@ void Graphics()
                     ctx.xmm3.f32[0] = (float)1.00f / iShadowResolution;
                 });
 
-            // Adjust CSM split distances
-            // TODO: Is this the right way of scaling CSM split distances? Should they even be adjusted?
-            spdlog::info("Shadow Quality: CSM Splits: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)CSMSplitsScanResult - (uintptr_t)baseModule);
-            static SafetyHookMid CSMSplitsMidHook{};
-            CSMSplitsMidHook = safetyhook::create_mid(CSMSplitsScanResult,
-                [](SafetyHookContext& ctx) {
-                    ctx.xmm12.f32[0] = ctx.xmm12.f32[0] * (1 + std::log((float)iShadowResolution / 2048.00f));
-                  });
+            if (iShadowResolution > 2048) {
+                // Adjust CSM split distances
+                // TODO: Is this the right way of scaling CSM split distances? Should they even be adjusted?
+                spdlog::info("Shadow Quality: CSM Splits: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)CSMSplitsScanResult - (uintptr_t)baseModule);
+                static SafetyHookMid CSMSplitsMidHook{};
+                CSMSplitsMidHook = safetyhook::create_mid(CSMSplitsScanResult,
+                    [](SafetyHookContext& ctx) {
+                        ctx.xmm12.f32[0] = ctx.xmm12.f32[0] * (1 + std::log((float)iShadowResolution / 2048.00f));
+                    });
+            }
         }
         else if (!ShadowResolutionScanResult || !ShadowTexShiftScanResult || !CSMSplitsScanResult) {
             spdlog::error("Shadow Quality: Pattern scan(s) failed.");
