@@ -43,6 +43,7 @@ float fCustomResScale = 1.00f;
 bool bDisableOutlines;
 int iShadowResolution = 2048;
 float fMasterVolume = 0.00f;
+bool bForceControllerIcons;
 
 // Aspect ratio + HUD stuff
 float fPi = (float)3.141592653;
@@ -280,6 +281,9 @@ void Configuration()
         spdlog::warn("Config Parse: fMasterVolume value invalid, clamped to {}", fMasterVolume);
     }
     spdlog::info("Config Parse: fMasterVolume: {}", fMasterVolume);
+
+    inipp::get_value(ini.sections["Force Controller Icons"], "Enabled", bForceControllerIcons);
+    spdlog::info("Config Parse: bForceControllerIcons: {}", bForceControllerIcons);
 
     spdlog::info("----------");
 
@@ -680,8 +684,7 @@ void HUD()
                     }  
                     else if (fAspectRatio < fNativeAspect) {
                         ctx.xmm1.f32[3] += 1080.00f - ((float)iCurrentResY / 2.00f);
-                    }
-                        
+                    }            
                 });
         }
         else if (!CameraPaneOffsetScanResult) {
@@ -765,6 +768,26 @@ void Misc()
             spdlog::error("Master Volume: Pattern scan failed.");
         }
     }
+    
+    if (bForceControllerIcons) {
+        // Force Controller Icons
+        uint8_t* InputIconsScanResult = Memory::PatternScan(baseModule, "E8 ?? ?? ?? ?? 83 ?? 01 74 ?? 80 ?? ?? ?? ?? ?? 00 0F 84 ?? ?? ?? ?? EB ?? C6 ?? ?? ?? ?? ?? 01");
+        if (InputIconsScanResult) {
+            spdlog::info("Force Controller Icons: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)InputIconsScanResult - (uintptr_t)baseModule);
+            uintptr_t InputIconsFunctionAddr = Memory::GetAbsolute((uintptr_t)InputIconsScanResult + 0x1);
+
+            spdlog::info("Force Controller Icons: Function address is {:s}+{:x}", sExeName.c_str(), InputIconsFunctionAddr - (uintptr_t)baseModule);
+            static SafetyHookMid InputIconsMidHook{};
+            InputIconsMidHook = safetyhook::create_mid(InputIconsFunctionAddr + 0x6,
+                [](SafetyHookContext& ctx) {
+                    ctx.rax = 0;
+                });
+        }
+        else if (!InputIconsScanResult) {
+            spdlog::error("Force Controller Icons: Pattern scan failed.");
+        }
+    }
+
 }
 
 void Graphics()
