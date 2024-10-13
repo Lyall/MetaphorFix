@@ -608,7 +608,7 @@ void HUD()
         // Screen Position
         uint8_t* ScreenPosHorScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? 48 8B ?? ?? ?? C5 ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ??");
         uint8_t* ScreenPosVertScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? C5 ?? ?? ?? 48 ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ??");
-        if (ScreenPosHorScanResult) {
+        if (ScreenPosHorScanResult && ScreenPosVertScanResult) {
             spdlog::info("HUD: ScreenPos: Horizontal: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ScreenPosHorScanResult - (uintptr_t)baseModule);
             static SafetyHookMid ScreenPosHorMidHook{};
             ScreenPosHorMidHook = safetyhook::create_mid(ScreenPosHorScanResult,
@@ -621,7 +621,7 @@ void HUD()
             ScreenPosHorOffsetMidHook = safetyhook::create_mid(ScreenPosHorScanResult + 0x21,
                 [](SafetyHookContext& ctx) {
                     if (fAspectRatio > fNativeAspect)
-                        ctx.xmm0.f32[0] -= (2160.00f * fAspectRatio - 3840.00f) / 2.00f;
+                        ctx.xmm0.f32[0] -= ((2160.00f * fAspectRatio) - 3840.00f) / 2.00f;
                 });
 
             spdlog::info("HUD: ScreenPos: Vertical: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ScreenPosVertScanResult - (uintptr_t)baseModule);
@@ -636,11 +636,11 @@ void HUD()
             ScreenPosVertOffsetMidHook = safetyhook::create_mid(ScreenPosHorScanResult + 0x11,
                 [](SafetyHookContext& ctx) {
                     if (fAspectRatio < fNativeAspect)
-                        ctx.xmm8.f32[0] -= (3840.00f / fAspectRatio - 2160.00f) / 2.00f;
+                        ctx.xmm8.f32[0] -= ((3840.00f / fAspectRatio) - 2160.00f) / 2.00f;
                 });
         }
-        else if (!ScreenPosHorScanResult) {
-            spdlog::error("HUD: ScreenPos: Pattern scan failed.");
+        else if (!ScreenPosHorScanResult || !ScreenPosVertScanResult) {
+            spdlog::error("HUD: ScreenPos: Pattern scan(s) failed.");
         }
 
         // Adjust individual HUD element sizes
@@ -676,9 +676,12 @@ void HUD()
             CameraPaneOffset1MidHook = safetyhook::create_mid(CameraPaneOffsetScanResult - 0x4,
                 [](SafetyHookContext& ctx) {
                     if (fAspectRatio > fNativeAspect) {
-                        // TODO: Calculate this.
-                        ctx.xmm1.f32[2] = -1000.00f;
-                   }
+                        ctx.xmm1.f32[2] -= 1920.00f - ((float)iCurrentResX / 2.00f);
+                    }  
+                    else if (fAspectRatio < fNativeAspect) {
+                        ctx.xmm1.f32[3] += 1080.00f - ((float)iCurrentResY / 2.00f);
+                    }
+                        
                 });
         }
         else if (!CameraPaneOffsetScanResult) {
