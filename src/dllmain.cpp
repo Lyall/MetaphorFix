@@ -775,19 +775,20 @@ void Misc()
     
     if (bForceControllerIcons) {
         // Force Controller Icons
-        uint8_t* InputIconsScanResult = Memory::PatternScan(baseModule, "E8 ?? ?? ?? ?? 83 ?? 01 74 ?? 80 ?? ?? ?? ?? ?? 00 0F 84 ?? ?? ?? ?? EB ?? C6 ?? ?? ?? ?? ?? 01");
-        if (InputIconsScanResult) {
-            spdlog::info("Force Controller Icons: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)InputIconsScanResult - (uintptr_t)baseModule);
-            uintptr_t InputIconsFunctionAddr = Memory::GetAbsolute((uintptr_t)InputIconsScanResult + 0x1);
+        uint8_t* KeyboardIconsScanResult = Memory::PatternScan(baseModule, "84 ?? 74 ?? C7 ?? ?? ?? ?? ?? 02 00 00 00 48 ?? ?? ?? 5B C3");
+        uint8_t* MouseIcons1ScanResult = Memory::PatternScan(baseModule, "E8 ?? ?? ?? ?? 48 ?? ?? ?? 5B E9 ?? ?? ?? ?? C7 ?? ?? ?? ?? ?? 01 00 00 00 48 ?? ?? ?? 5B C3");
+        uint8_t* MouseIcons2ScanResult = Memory::PatternScan(baseModule, "C7 ?? ?? ?? ?? ?? 01 00 00 00 E8 ?? ?? ?? ?? 83 ?? 01 75 ?? 0F ?? ?? E8 ?? ?? ?? ?? E8 ?? ?? ?? ?? 85 ?? 0F 85 ?? ?? ?? ?? 4C ?? ?? ?? ??");
+        if (KeyboardIconsScanResult && MouseIcons1ScanResult && MouseIcons2ScanResult) {
+            spdlog::info("Force Controller Icons: Keyboard: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)KeyboardIconsScanResult - (uintptr_t)baseModule);
+            Memory::PatchBytes((uintptr_t)KeyboardIconsScanResult + 0xA, "\x00", 1);
 
-            spdlog::info("Force Controller Icons: Function address is {:s}+{:x}", sExeName.c_str(), InputIconsFunctionAddr - (uintptr_t)baseModule);
-            static SafetyHookMid InputIconsMidHook{};
-            InputIconsMidHook = safetyhook::create_mid(InputIconsFunctionAddr + 0x6,
-                [](SafetyHookContext& ctx) {
-                    ctx.rax = 0;
-                });
+            spdlog::info("Force Controller Icons: Mouse: 1: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)MouseIcons1ScanResult - (uintptr_t)baseModule);
+            Memory::PatchBytes((uintptr_t)MouseIcons1ScanResult + 0x15, "\x00", 1);
+
+            spdlog::info("Force Controller Icons: Mouse: 2: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)MouseIcons2ScanResult - (uintptr_t)baseModule);
+            Memory::PatchBytes((uintptr_t)MouseIcons2ScanResult + 0x6, "\x00", 1);
         }
-        else if (!InputIconsScanResult) {
+        else if (!KeyboardIconsScanResult || !MouseIcons1ScanResult || !MouseIcons2ScanResult) {
             spdlog::error("Force Controller Icons: Pattern scan failed.");
         }
     }
