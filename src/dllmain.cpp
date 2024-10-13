@@ -236,14 +236,14 @@ void Configuration()
 
     inipp::get_value(ini.sections["Disable Dash Blur"], "Enabled", bDisableDashBlur);
     spdlog::info("Config Parse: bDisableDashBlur: {}", bDisableDashBlur);
-    /*
+
     inipp::get_value(ini.sections["Gameplay FOV"], "Multiplier", fGameplayFOVMulti);
     if (fGameplayFOVMulti < 0.10f || fGameplayFOVMulti > 3.00f) {
         fGameplayFOVMulti = std::clamp(fGameplayFOVMulti, 0.10f, 3.00f);
         spdlog::warn("Config Parse: fGameplayFOVMulti value invalid, clamped to {}", fGameplayFOVMulti);
     }
     spdlog::info("Config Parse: fGameplayFOVMulti: {}", fGameplayFOVMulti);
-    */
+    
     inipp::get_value(ini.sections["Ambient Occlusion"], "Resolution", fAOResolutionScale);
     if (fAOResolutionScale < 0.10f || fAOResolutionScale > 1.00f) {
         fAOResolutionScale = std::clamp(fAOResolutionScale, 0.10f, 1.00f);
@@ -485,7 +485,7 @@ void AspectRatioFOV()
             spdlog::error("FOV: Global: Pattern scan failed.");
         }
     }
-    /*
+    
     if (fGameplayFOVMulti != 1.00f) {
         // Gameplay FOV
         uint8_t* GameplayFOVScanResult = Memory::PatternScan(baseModule, "45 ?? ?? 48 ?? ?? C4 ?? ?? ?? ?? E8 ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? C4 ?? ?? ?? ?? C5 ?? ?? ??");
@@ -496,14 +496,14 @@ void AspectRatioFOV()
             static SafetyHookMid GameplayFOVMidHook{};
             GameplayFOVMidHook = safetyhook::create_mid(GameplayFOVFunctionAddr,
                 [](SafetyHookContext& ctx) {
-                    ctx.xmm1.f32[0] *= fGameplayFOVMulti;
+                    if (ctx.rax != 0)
+                        ctx.xmm1.f32[0] *= fGameplayFOVMulti;
                 });
         }
         else if (!GameplayFOVScanResult) {
             spdlog::error("FOV: Gameplay: Pattern scan failed.");
         }
     }
-    */
 }
 
 void HUD() 
@@ -789,7 +789,7 @@ void Misc()
             Memory::PatchBytes((uintptr_t)MouseIcons2ScanResult + 0x6, "\x00", 1);
         }
         else if (!KeyboardIconsScanResult || !MouseIcons1ScanResult || !MouseIcons2ScanResult) {
-            spdlog::error("Force Controller Icons: Pattern scan failed.");
+            spdlog::error("Force Controller Icons: Pattern scan(s) failed.");
         }
     }
 
