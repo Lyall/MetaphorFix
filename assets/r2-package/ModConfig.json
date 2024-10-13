@@ -1,0 +1,33 @@
+{
+  "ModId": "mrfpc.metaphorfix",
+  "ModName": "MetaphorFix",
+  "ModAuthor": "Lyall",
+  "ModVersion": "<REPLACED_VERSION_IN_CI>",
+  "ModDescription": "An \u0027Essentials\u0027 mod for Metaphor: ReFantazio. Edit `MetaphorFix.ini` in Mod Folder to configure settings.",
+  "ModDll": "",
+  "ModIcon": "",
+  "ModR2RManagedDll32": "",
+  "ModR2RManagedDll64": "",
+  "ModNativeDll32": "",
+  "ModNativeDll64": "MetaphorFix.asi",
+  "Tags": [],
+  "CanUnload": null,
+  "HasExports": null,
+  "IsLibrary": false,
+  "ReleaseMetadataFileName": "mrfpc.metaphorfix.ReleaseMetadata.json",
+  "PluginData": {
+    "GitHubRelease": {
+      "UserName": "Lyall",
+      "RepositoryName": "MetaphorFix",
+      "UseReleaseTag": true,
+      "AssetFileName": "MetaphorFix_Reloaded-II.zip"
+    }
+  },
+  "IsUniversalMod": false,
+  "ModDependencies": [],
+  "OptionalDependencies": [],
+  "SupportedAppId": [
+    "metaphor.exe"
+  ],
+  "ProjectUrl": "https://github.com/Lyall/MetaphorFix"
+}

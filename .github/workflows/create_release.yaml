@@ -41,23 +41,35 @@ jobs:
     - name: Create Directory Structure
       run: |
         mkdir .\zip
+        mkdir .\zip\Reloaded-II
 
-    - name: Prepare files
+    - name: Prepare Steam/MS files
       run: |
         cp ${{ github.event.repository.name }}.asi .\zip\
         cp ${{ github.event.repository.name }}.ini .\zip\
         cp dinput8.dll .\zip\winmm.dll
         cp UltimateASILoader_LICENSE.md .\zip\
         New-Item -Path ".\zip\EXTRACT_TO_GAME_FOLDER" -ItemType File
-        
-    - name: Create Release Zip
+
+    - name: Prepare Reloaded-II files
+      run: |
+        cp ${{ github.event.repository.name }}.asi .\zip\Reloaded-II\
+        cp ${{ github.event.repository.name }}.ini .\zip\Reloaded-II\
+        cp assets\r2-package\ModConfig.json .\zip\Reloaded-II\
+
+    - name: Create Steam/MS Zip
       run: |
         cd .\zip\
         7z a -r -tzip ..\${{ github.event.repository.name }}_${{ github.event.inputs.version }}.zip .\*
 
+    - name: Create Reloaded-II Zip
+      run: |
+        cd .\zip\Reloaded-II
+        7z a -r -tzip ..\..\${{ github.event.repository.name }}_Reloaded-II.zip .\*
+
     - uses: ncipollo/release-action@v1
       with:
-        artifacts: "${{ github.event.repository.name }}_${{ github.event.inputs.version }}.zip"
+        artifacts: "${{ github.event.repository.name }}_${{ github.event.inputs.version }}.zip, ${{ github.event.repository.name }}_Reloaded-II.zip"
         token: ${{ secrets.GITHUB_TOKEN }}
         tag: ${{ github.event.inputs.version }}
         name: "${{ github.event.inputs.version }}"
