@@ -38,6 +38,24 @@ This is a fix for Metaphor: ReFantazio that adds ultrawide/narrower support and 
 🚩**You do not need to do this if you are using Windows!**
 - Open up the game properties in Steam and add `WINEDLLOVERRIDES="winmm=n,b" %command%` to the launch options.
 
+<details>
+<summary>Installing MetaphorFix as a Reloaded II Mod</summary>
+  
+*This applies to both Windows and Steam Deck/Linux*
+
+Before starting, make sure to **delete any MetaphorFix files** inside of the game's files **if you have already have used this fix** previously (*MetaphorFix.ini*, *MetaphorFix.asi* and *winmm.dll*)
+
+To make sure MetaphorFix loads alongside any Reloaded II mods you are using, follow these steps:
+
+- Download the file marked `MetaphorFix_Reloaded-II.zip` from the the latest release.
+
+- Click "Download Mods" in Reloaded-II, then drag and drop `MetaphorFix_Reloaded-II.zip` onto the window. (Alternatively: [Manual Install](https://reloaded-project.github.io/Reloaded-II/QuickStart/))
+
+- Enable it in your `Reloaded-II` mod list.
+- You should now be able to start the game and see both MetaphorFix and Reloaded II mods working.
+
+</details>
+
 ## SpecialK
 - As of the latest update for the game (5/10/24) [SpecialK](https://www.special-k.info/) is no longer essential for improving performance. Still, there are many other benefits to using SpecialK with this (and any other) game.
 - If you are using this fix with SpecialK, you will need to delete the bundled Ultimate ASI Loader DLL (`winmm.dll`). You can then add MetaphorFix as a plug-in through the SpecialK OSD (accessed with `CTRL+SHIFT+BACKSPACE`).
