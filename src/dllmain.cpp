@@ -681,6 +681,77 @@ void HUD()
         else if (!ElementSizeScanResult) {
             spdlog::error("HUD: Element Size: Pattern scan failed.");
         }
+
+        // Fade Wipe
+        uint8_t* FadeWipeScanResult = Memory::PatternScan(baseModule, "40 ?? 41 ?? 48 ?? ?? ?? 31 ?? 49 ?? ?? 39 ?? ?? ?? ?? ?? 0F 86 ?? ?? ?? ??");
+        if (FadeWipeScanResult) {
+            spdlog::info("HUD: Fade Wipe: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)FadeWipeScanResult - (uintptr_t)baseModule);
+            static SafetyHookMid FadeWipeMidHook{};
+            FadeWipeMidHook = safetyhook::create_mid(FadeWipeScanResult,
+                [](SafetyHookContext& ctx) {
+                    if (ctx.rcx) {
+                        if (fAspectRatio > fNativeAspect) {
+                            float fWidthOffset = ((2160.00f * fAspectRatio) - 3840.00f) / 2.00f;
+                            // 0
+                            //*reinterpret_cast<float*>(ctx.rcx + 0xD0) = (2160.00f * fAspectRatio) - fWidthOffset;
+                            //*reinterpret_cast<float*>(ctx.rcx + 0xF0) = (2160.00f * fAspectRatio) - fWidthOffset;
+                            //*reinterpret_cast<float*>(ctx.rcx + 0x90) = -fWidthOffset;
+                            //*reinterpret_cast<float*>(ctx.rcx + 0xB0) = -fWidthOffset;
+                            // 1
+                            *reinterpret_cast<float*>(ctx.rcx + 0xE0 + 0xD0) = (2160.00f * fAspectRatio) - fWidthOffset;
+                            *reinterpret_cast<float*>(ctx.rcx + 0xE0 + 0xF0) = (2160.00f * fAspectRatio) - fWidthOffset;
+                            *reinterpret_cast<float*>(ctx.rcx + 0xE0 + 0x90) = -fWidthOffset;
+                            *reinterpret_cast<float*>(ctx.rcx + 0xE0 + 0xB0) = -fWidthOffset;
+                            // 2
+                            *reinterpret_cast<float*>(ctx.rcx + 0x1C0 + 0xD0) = (2160.00f * fAspectRatio) - fWidthOffset;
+                            *reinterpret_cast<float*>(ctx.rcx + 0x1C0 + 0xF0) = (2160.00f * fAspectRatio) - fWidthOffset;
+                            *reinterpret_cast<float*>(ctx.rcx + 0x1C0 + 0x90) = -fWidthOffset;
+                            *reinterpret_cast<float*>(ctx.rcx + 0x1C0 + 0xB0) = -fWidthOffset;
+                            // 3
+                            *reinterpret_cast<float*>(ctx.rcx + 0x2A0 + 0xD0) = (2160.00f * fAspectRatio) - fWidthOffset;
+                            *reinterpret_cast<float*>(ctx.rcx + 0x2A0 + 0xF0) = (2160.00f * fAspectRatio) - fWidthOffset;
+                            *reinterpret_cast<float*>(ctx.rcx + 0x2A0 + 0x90) = -fWidthOffset;
+                            *reinterpret_cast<float*>(ctx.rcx + 0x2A0 + 0xB0) = -fWidthOffset;
+                            // 4
+                            *reinterpret_cast<float*>(ctx.rcx + 0x380 + 0xD0) = (2160.00f * fAspectRatio) - fWidthOffset;
+                            *reinterpret_cast<float*>(ctx.rcx + 0x380 + 0xF0) = (2160.00f * fAspectRatio) - fWidthOffset;
+                            *reinterpret_cast<float*>(ctx.rcx + 0x380 + 0x90) = -fWidthOffset;
+                            *reinterpret_cast<float*>(ctx.rcx + 0x380 + 0xB0) = -fWidthOffset;
+                        }
+                        else if (fAspectRatio < fNativeAspect) {
+                            float fHeightOffset = ((3840.00f / fAspectRatio) - 2160.00f) / 2.00f;
+                            // 0
+                            //*reinterpret_cast<float*>(ctx.rcx + 0xB4) = (3840.00f / fAspectRatio) - fHeightOffset;
+                            //*reinterpret_cast<float*>(ctx.rcx + 0xF4) = (3840.00f / fAspectRatio) - fHeightOffset;
+                            //*reinterpret_cast<float*>(ctx.rcx + 0x94) = -fHeightOffset;
+                            //*reinterpret_cast<float*>(ctx.rcx + 0xD4) = -fHeightOffset;
+                            // 1
+                            *reinterpret_cast<float*>(ctx.rcx + 0xE0 + 0xB4) = (3840.00f / fAspectRatio) - fHeightOffset;
+                            *reinterpret_cast<float*>(ctx.rcx + 0xE0 + 0xF4) = (3840.00f / fAspectRatio) - fHeightOffset;
+                            *reinterpret_cast<float*>(ctx.rcx + 0xE0 + 0x94) = -fHeightOffset;
+                            *reinterpret_cast<float*>(ctx.rcx + 0xE0 + 0xD4) = -fHeightOffset;
+                            // 2
+                            *reinterpret_cast<float*>(ctx.rcx + 0x1C0 + 0xB4) = (3840.00f / fAspectRatio) - fHeightOffset;
+                            *reinterpret_cast<float*>(ctx.rcx + 0x1C0 + 0xF4) = (3840.00f / fAspectRatio) - fHeightOffset;
+                            *reinterpret_cast<float*>(ctx.rcx + 0x1C0 + 0x94) = -fHeightOffset;
+                            *reinterpret_cast<float*>(ctx.rcx + 0x1C0 + 0xD4) = -fHeightOffset;
+                            // 3
+                            *reinterpret_cast<float*>(ctx.rcx + 0x2A0 + 0xB4) = (3840.00f / fAspectRatio) - fHeightOffset;
+                            *reinterpret_cast<float*>(ctx.rcx + 0x2A0 + 0xF4) = (3840.00f / fAspectRatio) - fHeightOffset;
+                            *reinterpret_cast<float*>(ctx.rcx + 0x2A0 + 0x94) = -fHeightOffset;
+                            *reinterpret_cast<float*>(ctx.rcx + 0x2A0 + 0xD4) = -fHeightOffset;
+                            // 4
+                            *reinterpret_cast<float*>(ctx.rcx + 0x380 + 0xB4) = (3840.00f / fAspectRatio) - fHeightOffset;
+                            *reinterpret_cast<float*>(ctx.rcx + 0x380 + 0xF4) = (3840.00f / fAspectRatio) - fHeightOffset;
+                            *reinterpret_cast<float*>(ctx.rcx + 0x380 + 0x94) = -fHeightOffset;
+                            *reinterpret_cast<float*>(ctx.rcx + 0x380 + 0xD4) = -fHeightOffset;
+                        }
+                    }
+                });
+        }
+        else if (!FadeWipeScanResult) {
+            spdlog::error("HUD: Fade Wipe: Pattern scan failed.");
+        }
     }   
 
     if (bFixMovies) {
