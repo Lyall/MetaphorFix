@@ -10,10 +10,11 @@ This is a fix for Metaphor: ReFantazio that adds ultrawide/narrower support and 
 - Disabled ALT+F4/exit handler.
 - Remove 60fps cap in menus.
 - Fix 8-way analog movement.
-- Custom resolution scale.
-- Adjust resolution of ambient occlusion.
-- Adjust shadow resolution.
-
+- Adjust gameplay FOV.
+- Override master volume.
+- Force controller icons.
+- Disable camera shake.
+ 
 ### Ultrawide/narrower
 - Support for any resolution/aspect ratio.
 - Fix cropped FOV at <16:9.
@@ -25,6 +26,9 @@ This is a fix for Metaphor: ReFantazio that adds ultrawide/narrower support and 
 - Adjust ambient occlusion resolution.
 - Adjust level of detail distance.
 - Disable black outlines.
+- Custom resolution scale.
+- Adjust resolution of ambient occlusion.
+- Adjust shadow resolution.
 
 ## Installation
 - Grab the latest release of MetaphorFix from [here.](https://github.com/Lyall/MetaphorFix/releases)
@@ -46,7 +50,7 @@ Please report any issues you see.
 This list will contain bugs which may or may not be fixed.
 
 #### HUD Fix
-- Some 3D menu elements like pause screen text are invisible.
+- Some 3D menu elements like pause screen text are invisible. ([#41](https://github.com/Lyall/MetaphorFix/issues/41))
 - Screen captures may appear squashed as they are resized to 16:9.
   
 ## Screenshots
