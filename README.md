@@ -49,7 +49,7 @@ To make sure MetaphorFix loads alongside any Reloaded II mods you are using, fol
 
 - Download the file marked `MetaphorFix_Reloaded-II.zip` from the the latest release.
 
-- Drag and drop `MetaphorFix_Reloaded-II.zip` onto the Reloaded-II window. (Alternatively: [Manual Install](https://reloaded-project.github.io/Reloaded-II/QuickStart/))
+- Click "Download Mods" in Reloaded-II, then drag and drop `MetaphorFix_Reloaded-II.zip` onto the window. (Alternatively: [Manual Install](https://reloaded-project.github.io/Reloaded-II/QuickStart/))
 
 - Enable it in your `Reloaded-II` mod list.
 - You should now be able to start the game and see both MetaphorFix and Reloaded II mods working.
