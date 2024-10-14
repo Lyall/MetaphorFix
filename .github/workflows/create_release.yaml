@@ -64,7 +64,7 @@ jobs:
     - name: Create Steam/MS Zip
       run: |
         cd .\zip\Steam
-        7z a -r -tzip ..\${{ github.event.repository.name }}_${{ github.event.inputs.version }}.zip .\*
+        7z a -r -tzip ..\..\${{ github.event.repository.name }}_${{ github.event.inputs.version }}.zip .\*
 
     - name: Create Reloaded-II Zip
       run: |
