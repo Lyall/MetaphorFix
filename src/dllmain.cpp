@@ -44,7 +44,7 @@ bool bDisableOutlines;
 int iShadowResolution = 2048;
 float fMasterVolume = 0.00f;
 bool bForceControllerIcons;
-bool bDisableCameraSway;
+bool bDisableCameraShake;
 
 // Aspect ratio + HUD stuff
 float fPi = (float)3.141592653;
@@ -286,8 +286,8 @@ void Configuration()
     inipp::get_value(ini.sections["Force Controller Icons"], "Enabled", bForceControllerIcons);
     spdlog::info("Config Parse: bForceControllerIcons: {}", bForceControllerIcons);
 
-    inipp::get_value(ini.sections["Disable Camera Sway"], "Enabled", bDisableCameraSway);
-    spdlog::info("Config Parse: bDisableCameraSway: {}", bDisableCameraSway);
+    inipp::get_value(ini.sections["Disable Camera Shake"], "Enabled", bDisableCameraShake);
+    spdlog::info("Config Parse: bDisableCameraShake: {}", bDisableCameraShake);
 
     spdlog::info("----------");
 
@@ -793,16 +793,16 @@ void Misc()
         }
     }
 
-    if (bDisableCameraSway) {
-        // Camera sway in dialogue
-        uint8_t* CutsceneCameraSwayScanResult = Memory::PatternScan(baseModule, "41 ?? ?? 05 44 ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? C4 ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ??");
-        if (CutsceneCameraSwayScanResult) {
-            spdlog::info("Cutscene Camera Sway: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)CutsceneCameraSwayScanResult - (uintptr_t)baseModule);
-            Memory::Write((uintptr_t)CutsceneCameraSwayScanResult + 0x3, (BYTE)4);
-            spdlog::info("Cutscene Camera Sway: Patched instruction.");
+    if (bDisableCameraShake) {
+        // Camera Shake
+        uint8_t* CameraShakeScanResult = Memory::PatternScan(baseModule, "41 ?? ?? 05 44 ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? C4 ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ??");
+        if (CameraShakeScanResult) {
+            spdlog::info("Camera Shake: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)CameraShakeScanResult - (uintptr_t)baseModule);
+            Memory::Write((uintptr_t)CameraShakeScanResult + 0x3, (BYTE)4);
+            spdlog::info("Camera Shake: Patched instruction.");
         }
-        else if (!CutsceneCameraSwayScanResult) {
-            spdlog::error("Cutscene Camera Sway: Pattern scan failed.");
+        else if (!CameraShakeScanResult) {
+            spdlog::error("Camera Shake: Pattern scan failed.");
         }
     }
 }
