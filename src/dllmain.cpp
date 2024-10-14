@@ -45,6 +45,7 @@ int iShadowResolution = 2048;
 float fMasterVolume = 0.00f;
 bool bForceControllerIcons;
 bool bDisableCameraShake;
+bool bGameWindow;
 
 // Aspect ratio + HUD stuff
 float fPi = (float)3.141592653;
@@ -289,6 +290,9 @@ void Configuration()
     inipp::get_value(ini.sections["Disable Camera Shake"], "Enabled", bDisableCameraShake);
     spdlog::info("Config Parse: bDisableCameraShake: {}", bDisableCameraShake);
 
+    inipp::get_value(ini.sections["Game Window"], "Enabled", bGameWindow);
+    spdlog::info("Config Parse: bGameWindow: {}", bGameWindow);
+
     spdlog::info("----------");
 
     // Grab desktop resolution/aspect
@@ -341,20 +345,22 @@ LONG_PTR WINAPI SetWindowLongPtrW_hk(HWND hWnd, int nIndex, LONG_PTR dwNewLong) 
 
 void WindowManagement()
 {
-    // Hook SetWindowLongPtrW
-    HMODULE user32Module = GetModuleHandleW(L"user32.dll");
-    if (user32Module) {
-        FARPROC SetWindowLongPtrW_fn = GetProcAddress(user32Module, "SetWindowLongPtrW");
-        if (SetWindowLongPtrW_fn) {
-            SetWindowLongPtrW_sh = safetyhook::create_inline(SetWindowLongPtrW_fn, reinterpret_cast<void*>(SetWindowLongPtrW_hk));
-            spdlog::info("Game Window: Hooked SetWindowLongPtrW.");
+    if (bGameWindow) {
+        // Hook SetWindowLongPtrW
+        HMODULE user32Module = GetModuleHandleW(L"user32.dll");
+        if (user32Module) {
+            FARPROC SetWindowLongPtrW_fn = GetProcAddress(user32Module, "SetWindowLongPtrW");
+            if (SetWindowLongPtrW_fn) {
+                SetWindowLongPtrW_sh = safetyhook::create_inline(SetWindowLongPtrW_fn, reinterpret_cast<void*>(SetWindowLongPtrW_hk));
+                spdlog::info("Game Window: Hooked SetWindowLongPtrW.");
+            }
+            else {
+                spdlog::error("Game Window: Failed to get function address for SetWindowLongPtrW.");
+            }
         }
         else {
-            spdlog::error("Game Window: Failed to get function address for SetWindowLongPtrW.");
+            spdlog::error("Game Window: Failed to get module handle for user32.dll.");
         }
-    }
-    else {
-        spdlog::error("Game Window: Failed to get module handle for user32.dll.");
     }
 }
 
