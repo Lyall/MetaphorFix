@@ -681,25 +681,6 @@ void HUD()
         else if (!ElementSizeScanResult) {
             spdlog::error("HUD: Element Size: Pattern scan failed.");
         }
-
-        // HUD Camera Pane
-        uint8_t* CameraPaneOffsetScanResult = Memory::PatternScan(baseModule, "0F ?? ?? ?? 41 ?? ?? ?? ?? 0F ?? ?? ?? ?? 0F ?? ?? ?? 0F ?? ?? ?? ?? 0F ?? ?? ?? 0F ?? ?? ?? 0F ?? ?? 0F ?? ?? 0F ?? ?? ?? ?? 0F ?? ?? ?? ?? 7A ??");
-        if (CameraPaneOffsetScanResult) {
-            spdlog::info("HUD: Camera Pane: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)CameraPaneOffsetScanResult - (uintptr_t)baseModule);
-            static SafetyHookMid CameraPaneOffset1MidHook{};
-            CameraPaneOffset1MidHook = safetyhook::create_mid(CameraPaneOffsetScanResult - 0x4,
-                [](SafetyHookContext& ctx) {
-                    if (fAspectRatio > fNativeAspect) {
-                        ctx.xmm1.f32[2] -= 1920.00f - ((float)iCurrentResX / 2.00f);
-                    }  
-                    else if (fAspectRatio < fNativeAspect) {
-                        ctx.xmm1.f32[3] += 1080.00f - ((float)iCurrentResY / 2.00f);
-                    }            
-                });
-        }
-        else if (!CameraPaneOffsetScanResult) {
-            spdlog::error("HUD: Camera Pane: Pattern scan failed.");
-        }
     }   
 
     if (bFixMovies) {
