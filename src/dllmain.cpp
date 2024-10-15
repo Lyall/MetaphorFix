@@ -456,7 +456,7 @@ void Resolution()
 void AspectRatioFOV()
 {
     if (bFixAspect) {
-        // Shadow Aspect ratio
+        // Shadow Aspect Ratio
         uint8_t* ShadowAspectRatioScanResult = Memory::PatternScan(baseModule, "48 ?? ?? ?? C5 ?? ?? ?? ?? ?? E8 ?? ?? ?? ?? 8B ?? ?? ?? ?? ?? 4C ?? ?? ?? ?? ??");
         if (ShadowAspectRatioScanResult) {
             spdlog::info("Shadow Aspect Ratio: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ShadowAspectRatioScanResult - (uintptr_t)baseModule);
@@ -469,6 +469,21 @@ void AspectRatioFOV()
         }
         else if (!ShadowAspectRatioScanResult) {
             spdlog::error("Shadow Aspect Ratio: Pattern scan failed.");
+        }
+
+        // CameraPane Aspect Ratio
+        uint8_t* CameraPaneAspectRatioScanResult = Memory::PatternScan(baseModule, "48 ?? ?? E8 ?? ?? ?? ?? C5 ?? ?? ?? ?? 48 ?? ?? E8 ?? ?? ?? ?? C5 ?? ?? ?? ?? 48 ?? ?? E8 ?? ?? ?? ?? 4C ?? ??");
+        if (CameraPaneAspectRatioScanResult) {
+            spdlog::info("CameraPane Aspect Ratio: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)CameraPaneAspectRatioScanResult - (uintptr_t)baseModule);
+            static SafetyHookMid CameraPaneAspectRatioMidHook{};
+            CameraPaneAspectRatioMidHook = safetyhook::create_mid(CameraPaneAspectRatioScanResult,
+                [](SafetyHookContext& ctx) {
+                    if (fAspectRatio != fNativeAspect)
+                        ctx.xmm1.f32[0] = fNativeAspect;
+                });
+        }
+        else if (!CameraPaneAspectRatioScanResult) {
+            spdlog::error("CameraPane Aspect Ratio: Pattern scan failed.");
         }
     }
 
