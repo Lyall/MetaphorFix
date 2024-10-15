@@ -456,21 +456,19 @@ void Resolution()
 void AspectRatioFOV()
 {
     if (bFixAspect) {
-        // Aspect ratio
-        uint8_t* AspectRatioScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? C5 ?? ?? ?? ?? C4 ?? ?? ?? ?? C5 ?? ?? ?? 33 ?? C7 ?? ?? ?? ?? ?? 00 00 80 BF");
-        if (AspectRatioScanResult) {
-            spdlog::info("Aspect Ratio: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)AspectRatioScanResult - (uintptr_t)baseModule);
-            static SafetyHookMid AspectRatioMidHook{};
-            AspectRatioMidHook = safetyhook::create_mid(AspectRatioScanResult,
+        // Shadow Aspect ratio
+        uint8_t* ShadowAspectRatioScanResult = Memory::PatternScan(baseModule, "48 ?? ?? ?? C5 ?? ?? ?? ?? ?? E8 ?? ?? ?? ?? 8B ?? ?? ?? ?? ?? 4C ?? ?? ?? ?? ??");
+        if (ShadowAspectRatioScanResult) {
+            spdlog::info("Shadow Aspect Ratio: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ShadowAspectRatioScanResult - (uintptr_t)baseModule);
+            static SafetyHookMid ShadowAspectRatioMidHook{};
+            ShadowAspectRatioMidHook = safetyhook::create_mid(ShadowAspectRatioScanResult,
                 [](SafetyHookContext& ctx) {
-                    if (ctx.rbx + 0x190) {
-                        *reinterpret_cast<float*>(ctx.rbx + 0x190) = fAspectRatio;
-                        ctx.xmm2.f32[0] = fAspectRatio;
-                    }
+                    if (fAspectRatio > fNativeAspect)
+                        ctx.xmm1.f32[0] = fAspectRatio;
                 });
         }
-        else if (!AspectRatioScanResult) {
-            spdlog::error("Aspect Ratio: Pattern scan failed.");
+        else if (!ShadowAspectRatioScanResult) {
+            spdlog::error("Shadow Aspect Ratio: Pattern scan failed.");
         }
     }
 
