@@ -11,7 +11,7 @@ HMODULE thisModule; // Fix DLL
 
 // Version
 std::string sFixName = "MetaphorFix";
-std::string sFixVer = "0.8.0";
+std::string sFixVer = "0.8.1";
 std::string sLogFile = sFixName + ".log";
 
 // Logger
