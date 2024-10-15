@@ -370,6 +370,8 @@ void IntroSkip()
         // Intro Skip
         uint8_t* IntroSkipScanResult = Memory::PatternScan(baseModule, "83 ?? ?? 0F 87 ?? ?? ?? ?? 48 ?? ?? ?? ?? ?? ?? 8B ?? ?? ?? ?? ?? ?? 48 ?? ?? FF ?? BA 01 00 00 00 48 ?? ?? E8 ?? ?? ?? ?? 48 ?? ?? ?? ?? ?? ??");
         if (IntroSkipScanResult) {
+            static uint8_t* DemoIntroSkipScanResult = Memory::PatternScan(baseModule, "83 ?? 49 0F 87 ?? ?? ?? ?? 48 8D ?? ?? ?? ?? ?? 8B ?? ?? ?? ?? ?? ?? 48 ?? ??");
+
             spdlog::info("Intro Skip: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)IntroSkipScanResult - (uintptr_t)baseModule);
             static bool bHasSkippedIntro = false;
             static SafetyHookMid IntroSkipMidHook{};
@@ -377,26 +379,63 @@ void IntroSkip()
                 [](SafetyHookContext& ctx) {
                     int iTitleState = (int)ctx.rax;
 
-                    // Title States
-                    // 0x0 - 0x2F = OOBE
-                    // 0x30 = Atlus Logo
-                    // 0x31 = Studio Zero Logo
-                    // 0x37 = Middleware
-                    // 0x3C = Opening Movie
-                    // 0x40 = Attract Movie
-                    // 0x43 = Press Any Key
-                    
-                    if (!bHasSkippedIntro && ctx.rcx + 0x8) {
-                        // Check if at Atlus logo
-                        if (iTitleState == 0x30) {
-                            // Skip to main menu
-                            *reinterpret_cast<int*>(ctx.rcx + 0x8) = 0x43;
+                    if (DemoIntroSkipScanResult)
+                    {
+                        // Title States (Demo)
+                        // 0x11 - 0x1E = OOBE
+                        // 0x1F = Autosave dialog
+                        // 0x21 = Unauthorized reproduction warning
+                        // 0x2A = Atlus logo
+                        // 0x2B = Studio Zero logo
+                        // 0x31 = Middleware logo
+                        // 0x36 = Opening movie
+                        // 0x3A = Demo message
+                        // 0x3F = Main menu
 
-                            // Skip to intro movie
-                            if (!bSkipMovie)
-                                *reinterpret_cast<int*>(ctx.rcx + 0x8) = 0x3C;
+                        if (!bHasSkippedIntro && ctx.rcx + 0x8) {
+                            // Check if at autosave dialog
+                            if (iTitleState == 0x1F) {
+                                // Skip to pre-Atlus logo
+                                *reinterpret_cast<int*>(ctx.rcx + 0x8) = 0x27;
+                            }
 
-                            bHasSkippedIntro = true;
+                            // Check if at Atlus logo
+                            if (iTitleState == 0x2A) {
+                                // Skip to main menu
+                                *reinterpret_cast<int*>(ctx.rcx + 0x8) = 0x3F;
+
+                                // Skip to opening movie instead
+                                if (!bSkipMovie) {
+                                    *reinterpret_cast<int*>(ctx.rcx + 0x8) = 0x36;
+                                }
+
+                                bHasSkippedIntro = true;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Title States (Full Game)
+                        // 0x0 - 0x2F = OOBE
+                        // 0x30 = Atlus Logo
+                        // 0x31 = Studio Zero Logo
+                        // 0x37 = Middleware
+                        // 0x3C = Opening Movie
+                        // 0x40 = Attract Movie
+                        // 0x43 = Press Any Key
+
+                        if (!bHasSkippedIntro && ctx.rcx + 0x8) {
+                            // Check if at Atlus logo
+                            if (iTitleState == 0x30) {
+                                // Skip to main menu
+                                *reinterpret_cast<int*>(ctx.rcx + 0x8) = 0x43;
+
+                                // Skip to intro movie
+                                if (!bSkipMovie)
+                                    *reinterpret_cast<int*>(ctx.rcx + 0x8) = 0x3C;
+
+                                bHasSkippedIntro = true;
+                            }
                         }
                     }
                 });
