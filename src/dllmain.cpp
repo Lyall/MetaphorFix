@@ -771,6 +771,28 @@ void HUD()
         else if (!FadeWipeScanResult) {
             spdlog::error("HUD: Fade Wipe: Pattern scan failed.");
         }
+
+        // CameraPane Size
+        uint8_t* CameraPaneScanResult = Memory::PatternScan(baseModule, "41 ?? ?? ?? 0F ?? ?? ?? 0F ?? ?? ?? 41 0F ?? ?? ?? 0F ?? ?? ?? 0F ?? ?? ?? 0F ?? ?? ?? 0F ?? ?? ?? ?? ?? ??");
+        if (CameraPaneScanResult) {
+            spdlog::info("HUD: CameraPane Size: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)CameraPaneScanResult - (uintptr_t)baseModule);
+            static SafetyHookMid CameraPaneWidthMidHook{};
+            CameraPaneWidthMidHook = safetyhook::create_mid(CameraPaneScanResult,
+                [](SafetyHookContext& ctx) {
+                    if (fAspectRatio > fNativeAspect)
+                        ctx.xmm10.f32[0] = fHUDWidth / 2.00f;
+                });
+
+            static SafetyHookMid CameraPaneHeightMidHook{};
+            CameraPaneHeightMidHook = safetyhook::create_mid(CameraPaneScanResult - 0x13,
+                [](SafetyHookContext& ctx) {
+                    if (fAspectRatio < fNativeAspect)
+                        ctx.xmm4.f32[0] = fHUDHeight / 2.00f;
+                });
+        }
+        else if (!CameraPaneScanResult) {
+            spdlog::error("HUD: CameraPane Size: Pattern scan failed.");
+        }
     }   
 
     if (bFixMovies) {
