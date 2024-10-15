@@ -597,20 +597,24 @@ void HUD()
             static SafetyHookMid HUDOffsetMidHook{};
             HUDOffsetMidHook = safetyhook::create_mid(HUDOffsetScanResult + 0x9,
                 [](SafetyHookContext& ctx) {
-                    if (fAspectRatio > fNativeAspect)
-                        ctx.xmm0.f32[0] += ((2160.00f * fAspectRatio) - 3840.00f) / 2.00f;
-                    if (fAspectRatio < fNativeAspect)
-                        ctx.xmm0.f32[1] += ((3840.00f / fAspectRatio) - 2160.00f) / 2.00f;
+                    if (ctx.r12 == 1) {
+                        if (fAspectRatio > fNativeAspect)
+                            ctx.xmm0.f32[0] += ((2160.00f * fAspectRatio) - 3840.00f) / 2.00f;
+                        if (fAspectRatio < fNativeAspect)
+                            ctx.xmm0.f32[1] += ((3840.00f / fAspectRatio) - 2160.00f) / 2.00f;
+                    }
                 });
 
             spdlog::info("HUD: Offset: Clipping: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)HUDOffsetClipScanResult - (uintptr_t)baseModule);
             static SafetyHookMid HUDOffsetClipMidHook{};
             HUDOffsetClipMidHook = safetyhook::create_mid(HUDOffsetClipScanResult + 0x9,
                 [](SafetyHookContext& ctx) {
-                    if (fAspectRatio > fNativeAspect)
-                        ctx.xmm0.f32[0] += ((2160.00f * fAspectRatio) - 3840.00f) / 2.00f;
-                    if (fAspectRatio < fNativeAspect)
-                        ctx.xmm0.f32[1] += ((3840.00f / fAspectRatio) - 2160.00f) / 2.00f;
+                    if (ctx.r12 == 1) {
+                        if (fAspectRatio > fNativeAspect)
+                            ctx.xmm0.f32[0] += ((2160.00f * fAspectRatio) - 3840.00f) / 2.00f;
+                        if (fAspectRatio < fNativeAspect)
+                            ctx.xmm0.f32[1] += ((3840.00f / fAspectRatio) - 2160.00f) / 2.00f;
+                    }
                 });
         }
         else if (!HUDOffsetScanResult || !HUDOffsetClipScanResult) {
