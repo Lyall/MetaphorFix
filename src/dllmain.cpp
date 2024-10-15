@@ -459,7 +459,7 @@ void AspectRatioFOV()
         // Shadow Aspect Ratio
         uint8_t* ShadowAspectRatioScanResult = Memory::PatternScan(baseModule, "48 ?? ?? ?? C5 ?? ?? ?? ?? ?? E8 ?? ?? ?? ?? 8B ?? ?? ?? ?? ?? 4C ?? ?? ?? ?? ??");
         if (ShadowAspectRatioScanResult) {
-            spdlog::info("Shadow Aspect Ratio: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ShadowAspectRatioScanResult - (uintptr_t)baseModule);
+            spdlog::info("Aspect Ratio: Shadows: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ShadowAspectRatioScanResult - (uintptr_t)baseModule);
             static SafetyHookMid ShadowAspectRatioMidHook{};
             ShadowAspectRatioMidHook = safetyhook::create_mid(ShadowAspectRatioScanResult,
                 [](SafetyHookContext& ctx) {
@@ -468,22 +468,21 @@ void AspectRatioFOV()
                 });
         }
         else if (!ShadowAspectRatioScanResult) {
-            spdlog::error("Shadow Aspect Ratio: Pattern scan failed.");
+            spdlog::error("Aspect Ratio: Shadows: Pattern scan failed.");
         }
 
         // CameraPane Aspect Ratio
         uint8_t* CameraPaneAspectRatioScanResult = Memory::PatternScan(baseModule, "48 ?? ?? E8 ?? ?? ?? ?? C5 ?? ?? ?? ?? 48 ?? ?? E8 ?? ?? ?? ?? C5 ?? ?? ?? ?? 48 ?? ?? E8 ?? ?? ?? ?? 4C ?? ??");
         if (CameraPaneAspectRatioScanResult) {
-            spdlog::info("CameraPane Aspect Ratio: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)CameraPaneAspectRatioScanResult - (uintptr_t)baseModule);
+            spdlog::info("Aspect Ratio: CameraPane: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)CameraPaneAspectRatioScanResult - (uintptr_t)baseModule);
             static SafetyHookMid CameraPaneAspectRatioMidHook{};
             CameraPaneAspectRatioMidHook = safetyhook::create_mid(CameraPaneAspectRatioScanResult,
                 [](SafetyHookContext& ctx) {
-                    if (fAspectRatio != fNativeAspect)
-                        ctx.xmm1.f32[0] = fNativeAspect;
+                    ctx.xmm1.f32[0] = fNativeAspect;
                 });
         }
         else if (!CameraPaneAspectRatioScanResult) {
-            spdlog::error("CameraPane Aspect Ratio: Pattern scan failed.");
+            spdlog::error("Aspect Ratio: CameraPane: Pattern scan failed.");
         }
     }
 
@@ -841,6 +840,7 @@ void Misc()
     }
 
     if (bFixAnalog) {
+        // Fix 8-way analog gating
         uint8_t* XInputGetStateScanResult = Memory::PatternScan(baseModule, "3D ?? ?? ?? ?? 8D ?? ?? ?? ?? ?? C5 ?? ?? ?? 41 ?? ?? ?? 3D ?? ?? ?? ?? C5 ?? ?? ?? 0F ?? ?? ?? ??");
         if (XInputGetStateScanResult) {
             spdlog::info("Analog Movement Fix: XInputGetState: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)XInputGetStateScanResult - (uintptr_t)baseModule);
