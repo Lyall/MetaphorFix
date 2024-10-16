@@ -1052,8 +1052,7 @@ void Graphics()
         // LOD Distance
         uint8_t* LODDistanceScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? ?? ?? ? ?? C5 ?? ?? ?? ?? ?? 73 ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? 72 ?? C5 ?? ?? ?? ?? 73 ??");
         uint8_t* FoliageDistanceScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? 73 ?? C5 ?? ?? ?? EB ?? C5 ?? ?? ?? ?? ?? ?? ?? EB ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? 77 ??");
-        uint8_t* CameraFarPlaneScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? E8 ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? C4 ?? ?? ?? ??");
-        if (LODDistanceScanResult && FoliageDistanceScanResult && CameraFarPlaneScanResult) {
+        if (LODDistanceScanResult && FoliageDistanceScanResult) {
             spdlog::info("LOD: Distance: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)LODDistanceScanResult - (uintptr_t)baseModule);
             LODDistanceAddr = Memory::GetAbsolute((uintptr_t)LODDistanceScanResult + 0x4);
             spdlog::info("LOD: Distance: Value address is {:s}+{:x}", sExeName.c_str(), LODDistanceAddr - (uintptr_t)baseModule);
@@ -1068,16 +1067,9 @@ void Graphics()
             FoliageDistanceMidHook = safetyhook::create_mid(FoliageDistanceScanResult,
                 [](SafetyHookContext& ctx) {
                     ctx.xmm0.f32[0] = fRealLODDistance; // Default is 5000
-                });
-
-            spdlog::info("LOD: Camera FarPlane: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)CameraFarPlaneScanResult - (uintptr_t)baseModule);
-            static SafetyHookMid CameraFarPlaneMidHook{};
-            CameraFarPlaneMidHook = safetyhook::create_mid(CameraFarPlaneScanResult,
-                [](SafetyHookContext& ctx) {
-                    ctx.xmm6.f32[0] *= fLODDistance / 10.00f;
-                });
+                });            
         }
-        else if (!LODDistanceScanResult || !FoliageDistanceScanResult || !CameraFarPlaneScanResult) {
+        else if (!LODDistanceScanResult || !FoliageDistanceScanResult) {
             spdlog::error("LOD: Pattern scan(s) failed.");
         }
     }
