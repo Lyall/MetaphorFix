@@ -11,7 +11,7 @@ HMODULE thisModule; // Fix DLL
 
 // Version
 std::string sFixName = "MetaphorFix";
-std::string sFixVer = "0.8.2";
+std::string sFixVer = "0.8.3";
 std::string sLogFile = sFixName + ".log";
 
 // Logger
@@ -712,14 +712,17 @@ void HUD()
             spdlog::error("HUD: ScreenPos: Pattern scan(s) failed.");
         }
 
-        // Adjust individual HUD element sizes
+        // Adjust individual HUD elements
         uint8_t* ElementSizeScanResult = Memory::PatternScan(baseModule, "45 ?? ?? 8B ?? ?? 0F ?? ?? ?? ?? 89 ?? ?? 8B ?? ?? ?? 89 ?? ??");
         if (ElementSizeScanResult) {
             spdlog::info("HUD: Element Size: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ElementSizeScanResult - (uintptr_t)baseModule);
             static SafetyHookMid ElementSizeMidHook{};
             ElementSizeMidHook = safetyhook::create_mid(ElementSizeScanResult + 0x3,
                 [](SafetyHookContext& ctx) {
-                    if (ctx.r8 + 0x18) {
+                    if (ctx.r8 + 0x18 && ctx.rdi + 0xC0) {
+                        // Get name of SpriteStudio6 APK
+                        std::string sAPKName = std::string((char*)ctx.rdi + 0xC0);
+
                         // Cinematic letterboxing                   top                             bottom
                         if (ctx.xmm14.f32[0] == 1920.00f && (ctx.xmm3.f32[0] == 1898.00f || ctx.xmm3.f32[0] == 262.00f))
                         {
@@ -728,6 +731,17 @@ void HUD()
                             }
                             else if (fAspectRatio < fNativeAspect) {
                                 ctx.xmm5.f32[0] /= fAspectMultiplier;
+                            }
+                        }
+
+                        if (sAPKName == "mask" || sAPKName == "common_wipe") {
+                            if (ctx.xmm14.f32[0] == 1920.00f && ctx.xmm3.f32[0] == 1080.00f) {
+                                if (fAspectRatio > fNativeAspect) {
+                                    ctx.xmm6.f32[0] *= fAspectMultiplier;
+                                }
+                                else if (fAspectRatio < fNativeAspect) {
+                                    ctx.xmm5.f32[0] /= fAspectMultiplier;
+                                }
                             }
                         }
                     }
@@ -1076,10 +1090,10 @@ void Graphics()
 
     if (bDisableOutlines) {
         // Outline Shader
-        uint8_t* OutlineShaderScanResult = Memory::PatternScan(baseModule, "C7 ?? ?? ?? ?? ?? 0F 00 00 00 C6 ?? ?? ?? ?? ?? 01 C6 ?? ?? ?? ?? ?? 01");
+        uint8_t* OutlineShaderScanResult = Memory::PatternScan(baseModule, "41 ?? 04 00 00 00 C5 ?? ?? ?? ?? ?? ?? ?? 41 ?? ?? 48 ?? ?? FF ?? ?? ?? ?? ?? 81 ?? ?? ?? ?? ?? 00 00 00 02 B0 01");
         if (OutlineShaderScanResult) {
             spdlog::info("Outline Shader: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)OutlineShaderScanResult - (uintptr_t)baseModule);
-            Memory::PatchBytes((uintptr_t)OutlineShaderScanResult + 0x10, "\x00", 1);
+            Memory::PatchBytes((uintptr_t)OutlineShaderScanResult + 0x6, "\x0F\x57\xD8\x90\x90\x90\x90\x90", 8);
             spdlog::info("Outline Shader: Patched instruction.");
         }
         else if (!OutlineShaderScanResult) {
