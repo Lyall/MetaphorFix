@@ -228,7 +228,7 @@ void Configuration()
     spdlog::info("Config Parse: bIntroSkip: {}", bIntroSkip);
     spdlog::info("Config Parse: bSkipMovie: {}", bSkipMovie);
 
-    inipp::get_value(ini.sections["Menu Framerate Cap"], "Enabled", bMenuFPSCap);
+    inipp::get_value(ini.sections["Disable Menu FPS Cap"], "Enabled", bMenuFPSCap);
     spdlog::info("Config Parse: bMenuFPSCap: {}", bMenuFPSCap);
 
     inipp::get_value(ini.sections["Fix Analog Movement"], "Enabled", bFixAnalog);
