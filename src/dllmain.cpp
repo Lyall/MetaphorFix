@@ -1056,10 +1056,10 @@ void Graphics()
 
     if (bDisableOutlines) {
         // Outline Shader
-        uint8_t* OutlineShaderScanResult = Memory::PatternScan(baseModule, "41 ?? 04 00 00 00 C5 ?? ?? ?? ?? ?? ?? ?? 41 ?? ?? 48 ?? ?? FF ?? ?? ?? ?? ?? 81 ?? ?? ?? ?? ?? 00 00 00 02 B0 01");
+        uint8_t* OutlineShaderScanResult = Memory::PatternScan(baseModule, "C7 ?? ?? ?? ?? ?? 0F 00 00 00 C6 ?? ?? ?? ?? ?? 01 C6 ?? ?? ?? ?? ?? 01");
         if (OutlineShaderScanResult) {
             spdlog::info("Outline Shader: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)OutlineShaderScanResult - (uintptr_t)baseModule);
-            Memory::PatchBytes((uintptr_t)OutlineShaderScanResult + 0x6, "\x0F\x57\xD8\x90\x90\x90\x90\x90", 8);
+            Memory::PatchBytes((uintptr_t)OutlineShaderScanResult + 0x10, "\x00", 1);
             spdlog::info("Outline Shader: Patched instruction.");
         }
         else if (!OutlineShaderScanResult) {
