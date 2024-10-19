@@ -8,10 +8,10 @@ This is a fix for Metaphor: ReFantazio that adds ultrawide/narrower support and 
 ### General
 - Intro skip.
 - Disabled ALT+F4/exit handler.
+- Disable pause on focus loss.
 - Remove 60fps cap in menus.
 - Fix 8-way analog movement.
 - Adjust gameplay FOV.
-- Override master volume.
 - Force controller icons.
 - Disable camera shake.
  
@@ -67,6 +67,8 @@ To make sure MetaphorFix loads alongside any Reloaded II mods you are using, fol
 ## Known Issues
 Please report any issues you see.
 This list will contain bugs which may or may not be fixed.
+
+- Disabling outlines may cause visual issues. ([#50](https://github.com/Lyall/MetaphorFix/issues/50))
 
 #### HUD Fix
 - Some cut-ins and wipes/fades may appear squashed.
