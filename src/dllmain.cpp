@@ -719,14 +719,14 @@ void HUD()
             static SafetyHookMid ElementSizeMidHook{};
             ElementSizeMidHook = safetyhook::create_mid(ElementSizeScanResult + 0x3,
                 [](SafetyHookContext& ctx) {
-                    if (ctx.r8 + 0x18 && ctx.rdi + 0xC0) {
+                    if (ctx.r8 + 0x18 && ctx.rdi + 0xC0 && ctx.r14 + 0x10) {
                         // Get name of SpriteStudio 6 APK
-                        char* sAPKName = reinterpret_cast<char*>(ctx.rdi + 0xC0);
+                        std::string sAPKName = std::string((char*)ctx.rdi + 0xC0);
+                        std::string sElementName = std::string((char*)ctx.r14 + 0x10);
 
                         // Cinematic letterboxing
-                        if (sAPKName != nullptr && std::string(sAPKName) == "event_face") {
-                            if (ctx.xmm14.f32[0] == 1920.00f && (ctx.xmm3.f32[0] == 1898.00f || ctx.xmm3.f32[0] == 262.00f))
-                            {
+                        if (sAPKName == "event_face") {
+                            if (ctx.xmm14.f32[0] == 1920.00f && (ctx.xmm3.f32[0] == 1898.00f || ctx.xmm3.f32[0] == 262.00f)) {
                                 if (fAspectRatio > fNativeAspect) {
                                     ctx.xmm6.f32[0] *= fAspectMultiplier;
                                 }
@@ -736,7 +736,19 @@ void HUD()
                             }
                         }
 
-                        // "common_wipe", "mask"
+                        // Cut-ins and wipes
+                        if (sAPKName == "mask" || sAPKName == "common_wipe") {
+                            if (!sElementName.contains("command_result")) { // Battle result screen gets stretched
+                                if (ctx.xmm14.f32[0] == 1920.00f && ctx.xmm3.f32[0] == 1080.00f) {
+                                    if (fAspectRatio > fNativeAspect) {
+                                        ctx.xmm6.f32[0] *= fAspectMultiplier;
+                                    }
+                                    else if (fAspectRatio < fNativeAspect) {
+                                        ctx.xmm5.f32[0] /= fAspectMultiplier;
+                                    }
+                                }
+                            }                  
+                        }
                     }
                 });
         }
