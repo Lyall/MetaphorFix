@@ -735,20 +735,6 @@ void HUD()
                                 }
                             }
                         }
-
-                        // Cut-ins and wipes
-                        if (sAPKName == "mask" || sAPKName == "common_wipe") {
-                            if (!sElementName.contains("command_result")) { // Battle result screen gets stretched
-                                if (ctx.xmm14.f32[0] == 1920.00f && ctx.xmm3.f32[0] == 1080.00f) {
-                                    if (fAspectRatio > fNativeAspect) {
-                                        ctx.xmm6.f32[0] *= fAspectMultiplier;
-                                    }
-                                    else if (fAspectRatio < fNativeAspect) {
-                                        ctx.xmm5.f32[0] /= fAspectMultiplier;
-                                    }
-                                }
-                            }                  
-                        }
                     }
                 });
         }
