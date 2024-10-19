@@ -45,6 +45,7 @@ int iShadowResolution = 2048;
 bool bForceControllerIcons;
 bool bDisableCameraShake;
 bool bGameWindow;
+bool bPauseOnFocusLoss;
 
 // Aspect ratio + HUD stuff
 float fPi = (float)3.141592653;
@@ -284,6 +285,8 @@ void Configuration()
 
     inipp::get_value(ini.sections["Game Window"], "Enabled", bGameWindow);
     spdlog::info("Config Parse: bGameWindow: {}", bGameWindow);
+    inipp::get_value(ini.sections["Game Window"], "PauseOnFocusLoss", bPauseOnFocusLoss);
+    spdlog::info("Config Parse: bPauseOnFocusLoss: {}", bPauseOnFocusLoss);
 
     spdlog::info("----------");
 
@@ -297,6 +300,11 @@ void Configuration()
 WNDPROC OldWndProc;
 LRESULT __stdcall NewWndProc(HWND window, UINT message_type, WPARAM w_param, LPARAM l_param) {
     switch (message_type) {
+    case WM_ACTIVATE:
+        if (!bPauseOnFocusLoss && LOWORD(w_param) == WA_INACTIVE)
+            return 0; // Disable pause on focus loss.
+        break;
+
     case WM_SYSCOMMAND:
         switch (w_param) {
             case SC_SCREENSAVE: // Disable screensaver/monitor sleep
