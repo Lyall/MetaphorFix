@@ -57,8 +57,9 @@ To make sure MetaphorFix loads alongside any Reloaded II mods you are using, fol
 </details>
 
 ## SpecialK
-- As of the latest update for the game (5/10/24) [SpecialK](https://www.special-k.info/) is no longer essential for improving performance. Still, there are many other benefits to using SpecialK with this (and any other) game.
-- If you are using this fix with SpecialK, you will need to delete the bundled Ultimate ASI Loader DLL (`winmm.dll`). You can then add MetaphorFix as a plug-in through the SpecialK OSD (accessed with `CTRL+SHIFT+BACKSPACE`).
+- Using [SpecialK](https://www.special-k.info/) can provide a significant performance gain in this game, and offers many other useful features such as an excellent framerate limiter.
+- 🚩If you are using this fix with SpecialK, you will need to delete the bundled ASI loader file `winmm.dll`. 
+  You can then add MetaphorFix as a plug-in through the SpecialK OSD (accessed with `CTRL+SHIFT+BACKSPACE`).
 
 ## Configuration
 - See **MetaphorFix.ini** to adjust settings for the fix.
