@@ -293,6 +293,174 @@ void Configuration()
     CalculateAspectRatio(true);
 }
 
+void Graphics()
+{
+    if (iShadowResolution != 2048) {
+        // Shadow Resolution
+        uint8_t* ShadowResolutionScanResult = Memory::PatternScan(baseModule, "C7 ?? ?? 00 08 00 00 C7 ?? ?? 00 08 00 00 C7 ?? ?? ?? ?? ?? ?? C7 ?? ?? 01 00 00 00");
+        uint8_t* ShadowTexShiftScanResult = Memory::PatternScan(baseModule, "41 ?? ?? 48 ?? ?? ?? 48 ?? ?? FF ?? ?? ?? ?? ?? 48 ?? ?? ?? ?? ?? ?? 4C ?? ?? ?? ??");
+        uint8_t* CSMSplitsScanResult = Memory::PatternScan(baseModule, "8B ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? C4 ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? 48 ?? ?? ??");
+        if (ShadowResolutionScanResult && ShadowTexShiftScanResult && CSMSplitsScanResult) {
+            // Set shadowmap resolution
+            spdlog::info("Shadow Quality: Resolution: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ShadowResolutionScanResult - (uintptr_t)baseModule);
+            Memory::Write((uintptr_t)ShadowResolutionScanResult + 0x3, iShadowResolution);
+            Memory::Write((uintptr_t)ShadowResolutionScanResult + 0xA, iShadowResolution);
+            spdlog::info("Shadow Quality: Resolution: Patched instruction.");
+
+            // Set shadowTexShift property to account for increased/decreased shadowmap resolution
+            spdlog::info("Shadow Quality: ShadowTexShift: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ShadowTexShiftScanResult - (uintptr_t)baseModule);
+            static SafetyHookMid ShadowTexShiftMidHook{};
+            ShadowTexShiftMidHook = safetyhook::create_mid(ShadowTexShiftScanResult,
+                [](SafetyHookContext& ctx) {
+                    // Default = 1.00f / 2048 (0.00048828125f)
+                    // If this isn't adjusted then shadows can look offset and artifacty
+                    ctx.xmm3.f32[0] = (float)1.00f / iShadowResolution;
+                });
+
+            if (iShadowResolution > 2048) {
+                // Adjust CSM split distances
+                // TODO: Is this the right way of scaling CSM split distances? Should they even be adjusted?
+                spdlog::info("Shadow Quality: CSM Splits: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)CSMSplitsScanResult - (uintptr_t)baseModule);
+                static SafetyHookMid CSMSplitsMidHook{};
+                CSMSplitsMidHook = safetyhook::create_mid(CSMSplitsScanResult,
+                    [](SafetyHookContext& ctx) {
+                        ctx.xmm12.f32[0] = ctx.xmm12.f32[0] * (1 + std::log((float)iShadowResolution / 2048.00f));
+                    });
+            }
+        }
+        else if (!ShadowResolutionScanResult || !ShadowTexShiftScanResult || !CSMSplitsScanResult) {
+            spdlog::error("Shadow Quality: Pattern scan(s) failed.");
+        }
+    }
+
+    // Resolution Scale
+    uint8_t* ResolutionScaleScanResult = Memory::PatternScan(baseModule, "8B ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? 44 ?? ?? ??");
+    if (ResolutionScaleScanResult) {
+        spdlog::info("Resolution Scale: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ResolutionScaleScanResult - (uintptr_t)baseModule);
+        static SafetyHookMid ResolutionScaleMidHook{};
+        ResolutionScaleMidHook = safetyhook::create_mid(ResolutionScaleScanResult + 0xE,
+            [](SafetyHookContext& ctx) {
+                // Set custom resolution scale
+                if (fCustomResScale != 1.00f && ctx.rcx + 0x888) {
+                    // Set res scale option to 4 (100%)
+                    *reinterpret_cast<int*>(ctx.rcx + 0x888) = 4;
+                    ctx.rax = 4;
+                    // Write new resolution scale
+                    Memory::Write(ctx.rdx + 0x10, 1.00f / fCustomResScale);
+
+                    spdlog::info("Resolution Scale: Custom: Base Resolution: {}x{}.", iCurrentResX, iCurrentResY);
+                    spdlog::info("Resolution Scale: Custom: Scaled Resolution: {}x{}.", static_cast<int>(iCurrentResX * fCustomResScale), static_cast<int>(iCurrentResY * fCustomResScale));
+                }
+
+                // Log res scale option for AO
+                iResScaleOption = (int)ctx.rax;
+            });
+    }
+    else if (!ResolutionScaleScanResult) {
+        spdlog::error("Resolution Scale: Pattern scan failed.");
+    }
+
+    if (fAOResolutionScale != 1.00f) {
+        // Ambient Occlusion Resolution
+        uint8_t* AOResolutionScanResult = Memory::PatternScan(baseModule, "8B ?? 48 ?? ?? ?? ?? ?? ?? 48 ?? ?? 74 ?? E8 ?? ?? ?? ?? 41 ?? 00 40 00 00 41 ?? 16 00 00 00");
+        if (AOResolutionScanResult) {
+            spdlog::info("Ambient Occlusion Resolution: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)AOResolutionScanResult - (uintptr_t)baseModule);
+            static SafetyHookMid AOResolutionMidHook{};
+            AOResolutionMidHook = safetyhook::create_mid(AOResolutionScanResult,
+                [](SafetyHookContext& ctx) {
+                    float fResScale = 1.00f;
+                    switch (iResScaleOption) {
+                    case 0:
+                        fResScale = 2.00f;  // 200%
+                        break;
+                    case 1:
+                        fResScale = 1.75f;  // 175%
+                        break;
+                    case 2:
+                        fResScale = 1.50f;  // 150%
+                        break;
+                    case 3:
+                        fResScale = 1.25f;  // 125%
+                        break;
+                    case 4:
+                        fResScale = 1.00f;  // 100%
+                        break;
+                    case 5:
+                        fResScale = 0.75f;  // 75%
+                        break;
+                    case 6:
+                        fResScale = 0.50f;  // 50%
+                        break;
+                    default:
+                        fResScale = 1.00f;
+                        break;
+                    }
+
+                    if (fCustomResScale != 1.00f)
+                        fResScale = fCustomResScale;
+
+                    // Calculate resolution with in-game resolution scale
+                    int iScaledResX = static_cast<int>(iCurrentResX * fResScale);
+                    int iScaledResY = static_cast<int>(iCurrentResY * fResScale);
+
+                    // Calculate new ambient occlusion resolution
+                    int iAmbientOcclusionResX = static_cast<int>(iScaledResX * fAOResolutionScale);
+                    int iAmbientOcclusionResY = static_cast<int>(iScaledResY * fAOResolutionScale);
+
+                    // Log old and new resolution
+                    spdlog::info("Ambient Occlusion: Previous Resolution: {}x{}.", iScaledResX, iScaledResY);
+                    spdlog::info("Ambient Occlusion: New Resolution: {}x{}.", iAmbientOcclusionResX, iAmbientOcclusionResY);
+
+                    // Apply new resolution
+                    ctx.rbx = iAmbientOcclusionResX;
+                    ctx.rax = iAmbientOcclusionResY;
+                });
+        }
+        else if (!AOResolutionScanResult) {
+            spdlog::error("Ambient Occlusion Resolution: Pattern scan failed.");
+        }
+    }
+
+    if (fLODDistance != 10.00f) {
+        // LOD Distance
+        uint8_t* LODDistanceScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? ?? ?? ? ?? C5 ?? ?? ?? ?? ?? 73 ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? 72 ?? C5 ?? ?? ?? ?? 73 ??");
+        uint8_t* FoliageDistanceScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? 73 ?? C5 ?? ?? ?? EB ?? C5 ?? ?? ?? ?? ?? ?? ?? EB ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? 77 ??");
+        if (LODDistanceScanResult && FoliageDistanceScanResult) {
+            spdlog::info("LOD: Distance: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)LODDistanceScanResult - (uintptr_t)baseModule);
+            LODDistanceAddr = Memory::GetAbsolute((uintptr_t)LODDistanceScanResult + 0x4);
+            spdlog::info("LOD: Distance: Value address is {:s}+{:x}", sExeName.c_str(), LODDistanceAddr - (uintptr_t)baseModule);
+
+            // Big number scary
+            static float fRealLODDistance = fLODDistance * 1000.00f;
+            // This value can be modified directly since it's only accessed by one function. 
+            Memory::Write(LODDistanceAddr, fRealLODDistance);
+
+            spdlog::info("LOD: Foliage: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)FoliageDistanceScanResult - (uintptr_t)baseModule);
+            static SafetyHookMid FoliageDistanceMidHook{};
+            FoliageDistanceMidHook = safetyhook::create_mid(FoliageDistanceScanResult,
+                [](SafetyHookContext& ctx) {
+                    ctx.xmm0.f32[0] = fRealLODDistance; // Default is 5000
+                });
+        }
+        else if (!LODDistanceScanResult || !FoliageDistanceScanResult) {
+            spdlog::error("LOD: Pattern scan(s) failed.");
+        }
+    }
+
+    if (bDisableOutlines) {
+        // Outline Shader
+        uint8_t* OutlineShaderScanResult = Memory::PatternScan(baseModule, "C7 ?? ?? ?? ?? ?? 0F 00 00 00 C6 ?? ?? ?? ?? ?? 01 C6 ?? ?? ?? ?? ?? 01");
+        if (OutlineShaderScanResult) {
+            spdlog::info("Outline Shader: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)OutlineShaderScanResult - (uintptr_t)baseModule);
+            Memory::PatchBytes((uintptr_t)OutlineShaderScanResult + 0x10, "\x00", 1);
+            spdlog::info("Outline Shader: Patched instruction.");
+        }
+        else if (!OutlineShaderScanResult) {
+            spdlog::error("Outline Shader: Pattern scan failed.");
+        }
+    }
+}
+
 WNDPROC OldWndProc;
 LRESULT __stdcall NewWndProc(HWND window, UINT message_type, WPARAM w_param, LPARAM l_param) {
     switch (message_type) {
@@ -927,184 +1095,17 @@ void Misc()
     }
 }
 
-void Graphics()
-{
-    // Resolution Scale
-    uint8_t* ResolutionScaleScanResult = Memory::PatternScan(baseModule, "8B ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? 44 ?? ?? ??");
-    if (ResolutionScaleScanResult) {
-        spdlog::info("Resolution Scale: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ResolutionScaleScanResult - (uintptr_t)baseModule);
-        static SafetyHookMid ResolutionScaleMidHook{};
-        ResolutionScaleMidHook = safetyhook::create_mid(ResolutionScaleScanResult + 0xE,
-            [](SafetyHookContext& ctx) {
-                // Set custom resolution scale
-                if (fCustomResScale != 1.00f && ctx.rcx + 0x888) {
-                    // Set res scale option to 4 (100%)
-                    *reinterpret_cast<int*>(ctx.rcx + 0x888) = 4;
-                    ctx.rax = 4;
-                    // Write new resolution scale
-                    Memory::Write(ctx.rdx + 0x10, 1.00f / fCustomResScale);
-
-                    spdlog::info("Resolution Scale: Custom: Base Resolution: {}x{}.", iCurrentResX, iCurrentResY);
-                    spdlog::info("Resolution Scale: Custom: Scaled Resolution: {}x{}.", static_cast<int>(iCurrentResX * fCustomResScale), static_cast<int>(iCurrentResY * fCustomResScale));
-                }
-
-                // Log res scale option for AO
-                iResScaleOption = (int)ctx.rax;
-            });
-    }
-    else if (!ResolutionScaleScanResult) { 
-        spdlog::error("Resolution Scale: Pattern scan failed.");
-    }
-
-    if (fAOResolutionScale != 1.00f) {
-        // Ambient Occlusion Resolution
-        uint8_t* AOResolutionScanResult = Memory::PatternScan(baseModule, "8B ?? 48 ?? ?? ?? ?? ?? ?? 48 ?? ?? 74 ?? E8 ?? ?? ?? ?? 41 ?? 00 40 00 00 41 ?? 16 00 00 00");
-        if (AOResolutionScanResult) {
-            spdlog::info("Ambient Occlusion Resolution: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)AOResolutionScanResult - (uintptr_t)baseModule);
-            static SafetyHookMid AOResolutionMidHook{};
-            AOResolutionMidHook = safetyhook::create_mid(AOResolutionScanResult,
-                [](SafetyHookContext& ctx) {
-                    float fResScale = 1.00f;
-                    switch (iResScaleOption) {
-                    case 0:
-                        fResScale = 2.00f;  // 200%
-                        break;
-                    case 1:
-                        fResScale = 1.75f;  // 175%
-                        break;
-                    case 2:
-                        fResScale = 1.50f;  // 150%
-                        break;
-                    case 3:
-                        fResScale = 1.25f;  // 125%
-                        break;
-                    case 4:
-                        fResScale = 1.00f;  // 100%
-                        break;
-                    case 5:
-                        fResScale = 0.75f;  // 75%
-                        break;
-                    case 6:
-                        fResScale = 0.50f;  // 50%
-                        break;
-                    default:
-                        fResScale = 1.00f;
-                        break;
-                    }
-
-                    if (fCustomResScale != 1.00f)
-                        fResScale = fCustomResScale;
-
-                    // Calculate resolution with in-game resolution scale
-                    int iScaledResX = static_cast<int>(iCurrentResX * fResScale);
-                    int iScaledResY = static_cast<int>(iCurrentResY * fResScale);
-
-                    // Calculate new ambient occlusion resolution
-                    int iAmbientOcclusionResX = static_cast<int>(iScaledResX * fAOResolutionScale);
-                    int iAmbientOcclusionResY = static_cast<int>(iScaledResY * fAOResolutionScale);
-
-                    // Log old and new resolution
-                    spdlog::info("Ambient Occlusion: Previous Resolution: {}x{}.", iScaledResX, iScaledResY);
-                    spdlog::info("Ambient Occlusion: New Resolution: {}x{}.", iAmbientOcclusionResX, iAmbientOcclusionResY);
-
-                    // Apply new resolution
-                    ctx.rbx = iAmbientOcclusionResX;
-                    ctx.rax = iAmbientOcclusionResY;
-                });
-        }
-        else if (!AOResolutionScanResult) {
-            spdlog::error("Ambient Occlusion Resolution: Pattern scan failed.");
-        }
-    }
-  
-    if (fLODDistance != 10.00f) {
-        // LOD Distance
-        uint8_t* LODDistanceScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? ?? ?? ? ?? C5 ?? ?? ?? ?? ?? 73 ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? 72 ?? C5 ?? ?? ?? ?? 73 ??");
-        uint8_t* FoliageDistanceScanResult = Memory::PatternScan(baseModule, "C5 ?? ?? ?? 73 ?? C5 ?? ?? ?? EB ?? C5 ?? ?? ?? ?? ?? ?? ?? EB ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? 77 ??");
-        if (LODDistanceScanResult && FoliageDistanceScanResult) {
-            spdlog::info("LOD: Distance: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)LODDistanceScanResult - (uintptr_t)baseModule);
-            LODDistanceAddr = Memory::GetAbsolute((uintptr_t)LODDistanceScanResult + 0x4);
-            spdlog::info("LOD: Distance: Value address is {:s}+{:x}", sExeName.c_str(), LODDistanceAddr - (uintptr_t)baseModule);
-
-            // Big number scary
-            static float fRealLODDistance = fLODDistance * 1000.00f;
-            // This value can be modified directly since it's only accessed by one function. 
-            Memory::Write(LODDistanceAddr, fRealLODDistance);
-
-            spdlog::info("LOD: Foliage: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)FoliageDistanceScanResult - (uintptr_t)baseModule);
-            static SafetyHookMid FoliageDistanceMidHook{};
-            FoliageDistanceMidHook = safetyhook::create_mid(FoliageDistanceScanResult,
-                [](SafetyHookContext& ctx) {
-                    ctx.xmm0.f32[0] = fRealLODDistance; // Default is 5000
-                });            
-        }
-        else if (!LODDistanceScanResult || !FoliageDistanceScanResult) {
-            spdlog::error("LOD: Pattern scan(s) failed.");
-        }
-    }
-
-    if (bDisableOutlines) {
-        // Outline Shader
-        uint8_t* OutlineShaderScanResult = Memory::PatternScan(baseModule, "C7 ?? ?? ?? ?? ?? 0F 00 00 00 C6 ?? ?? ?? ?? ?? 01 C6 ?? ?? ?? ?? ?? 01");
-        if (OutlineShaderScanResult) {
-            spdlog::info("Outline Shader: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)OutlineShaderScanResult - (uintptr_t)baseModule);
-            Memory::PatchBytes((uintptr_t)OutlineShaderScanResult + 0x10, "\x00", 1);
-            spdlog::info("Outline Shader: Patched instruction.");
-        }
-        else if (!OutlineShaderScanResult) {
-            spdlog::error("Outline Shader: Pattern scan failed.");
-        }
-    }
-
-    if (iShadowResolution != 2048) {
-        uint8_t* ShadowResolutionScanResult = Memory::PatternScan(baseModule, "C7 ?? ?? 00 08 00 00 C7 ?? ?? 00 08 00 00 C7 ?? ?? ?? ?? ?? ?? C7 ?? ?? 01 00 00 00");
-        uint8_t* ShadowTexShiftScanResult = Memory::PatternScan(baseModule, "41 ?? ?? 48 ?? ?? ?? 48 ?? ?? FF ?? ?? ?? ?? ?? 48 ?? ?? ?? ?? ?? ?? 4C ?? ?? ?? ??");
-        uint8_t* CSMSplitsScanResult = Memory::PatternScan(baseModule, "8B ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? C4 ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? 48 ?? ?? ??");
-        if (ShadowResolutionScanResult && ShadowTexShiftScanResult && CSMSplitsScanResult) {
-            // Set shadowmap resolution
-            spdlog::info("Shadow Quality: Resolution: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ShadowResolutionScanResult - (uintptr_t)baseModule);
-            Memory::Write((uintptr_t)ShadowResolutionScanResult + 0x3, iShadowResolution);
-            Memory::Write((uintptr_t)ShadowResolutionScanResult + 0xA, iShadowResolution);
-            spdlog::info("Shadow Quality: Resolution: Patched instruction.");
-
-            // Set shadowTexShift property to account for increased/decreased shadowmap resolution
-            spdlog::info("Shadow Quality: ShadowTexShift: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)ShadowTexShiftScanResult - (uintptr_t)baseModule);
-            static SafetyHookMid ShadowTexShiftMidHook{};
-            ShadowTexShiftMidHook = safetyhook::create_mid(ShadowTexShiftScanResult,
-                [](SafetyHookContext& ctx) {
-                    // Default = 1.00f / 2048 (0.00048828125f)
-                    // If this isn't adjusted then shadows can look offset and artifacty
-                    ctx.xmm3.f32[0] = (float)1.00f / iShadowResolution;
-                });
-
-            if (iShadowResolution > 2048) {
-                // Adjust CSM split distances
-                // TODO: Is this the right way of scaling CSM split distances? Should they even be adjusted?
-                spdlog::info("Shadow Quality: CSM Splits: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)CSMSplitsScanResult - (uintptr_t)baseModule);
-                static SafetyHookMid CSMSplitsMidHook{};
-                CSMSplitsMidHook = safetyhook::create_mid(CSMSplitsScanResult,
-                    [](SafetyHookContext& ctx) {
-                        ctx.xmm12.f32[0] = ctx.xmm12.f32[0] * (1 + std::log((float)iShadowResolution / 2048.00f));
-                    });
-            }
-        }
-        else if (!ShadowResolutionScanResult || !ShadowTexShiftScanResult || !CSMSplitsScanResult) {
-            spdlog::error("Shadow Quality: Pattern scan(s) failed.");
-        }
-    }
-}
-
 DWORD __stdcall Main(void*)
 {
     Logging();
     Configuration();
+    Graphics();
     WindowManagement();
     Resolution();
     IntroSkip();
     AspectRatioFOV();
     HUD();
     Misc();
-    Graphics();
     return true;
 }
 
