@@ -915,10 +915,10 @@ void Misc()
 
     if (bDisableCameraShake) {
         // Camera Shake
-        uint8_t* CameraShakeScanResult = Memory::PatternScan(baseModule, "8B ?? ?? ?? ?? ?? 81 ?? 47 ?? ?? ?? 41 ?? ?? 44 ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? C4 ?? ?? ?? ?? ??");
+        uint8_t* CameraShakeScanResult = Memory::PatternScan(baseModule, "41 ?? ?? 05 44 89 ?? ?? ?? ?? ?? C5 ?? ?? ?? 02");
         if (CameraShakeScanResult) {
             spdlog::info("Camera Shake: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)CameraShakeScanResult - (uintptr_t)baseModule);
-            Memory::Write((uintptr_t)CameraShakeScanResult + 0x8, (BYTE)0x48);
+            Memory::Write((uintptr_t)CameraShakeScanResult + 0x3, (BYTE)0x04);
             spdlog::info("Camera Shake: Patched instruction.");
         }
         else if (!CameraShakeScanResult) {
