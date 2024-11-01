@@ -11,7 +11,7 @@ HMODULE thisModule; // Fix DLL
 
 // Version
 std::string sFixName = "MetaphorFix";
-std::string sFixVer = "0.8.3";
+std::string sFixVer = "0.8.4";
 std::string sLogFile = sFixName + ".log";
 
 // Logger
@@ -34,7 +34,6 @@ bool bFixMovies;
 bool bIntroSkip;
 bool bSkipMovie;
 bool bMenuFPSCap;
-bool bDisableDashBlur;
 float fAOResolutionScale = 1.00f;
 float fGameplayFOVMulti = 1.00f;
 float fLODDistance = 10.00f;
@@ -234,9 +233,6 @@ void Configuration()
 
     inipp::get_value(ini.sections["Fix Analog Movement"], "Enabled", bFixAnalog);
     spdlog::info("Config Parse: bFixAnalog: {}", bFixAnalog);
-
-    inipp::get_value(ini.sections["Disable Dash Blur"], "Enabled", bDisableDashBlur);
-    spdlog::info("Config Parse: bDisableDashBlur: {}", bDisableDashBlur);
 
     inipp::get_value(ini.sections["Gameplay FOV"], "Multiplier", fGameplayFOVMulti);
     if (fGameplayFOVMulti < 0.10f || fGameplayFOVMulti > 3.00f) {
@@ -933,19 +929,6 @@ void Misc()
 
 void Graphics()
 {
-    if (bDisableDashBlur) {
-        // Disable dash blur + speed lines
-        uint8_t* DashBlurScanResult = Memory::PatternScan(baseModule, "74 ?? 84 ?? 75 ?? 45 ?? ?? 48 ?? ?? 41 ?? ?? ?? E8 ?? ?? ?? ??");
-        if (DashBlurScanResult) {
-            spdlog::info("Dash Blur: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)DashBlurScanResult - (uintptr_t)baseModule);
-            Memory::PatchBytes((uintptr_t)DashBlurScanResult, "\xEB", 1);
-            spdlog::info("Dash Blur: Patched instruction.");
-        }
-        else if (!DashBlurScanResult) {
-            spdlog::error("Dash Blur: Pattern scan failed.");
-        }
-    }
-
     // Resolution Scale
     uint8_t* ResolutionScaleScanResult = Memory::PatternScan(baseModule, "8B ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? 44 ?? ?? ??");
     if (ResolutionScaleScanResult) {
