@@ -899,6 +899,34 @@ void HUD()
                                 }
                             }
                         }
+
+                        // Cut-ins
+                        if (sAPKName == "common_wipe") {
+                            if (sElementName.contains("common_wipe")) {
+                                if (ctx.xmm14.f32[0] == 1920.00f && ctx.xmm3.f32[0] == 1080.00f) {
+                                    if (fAspectRatio > fNativeAspect) {
+                                        ctx.xmm6.f32[0] *= fAspectMultiplier;
+                                    }
+                                    else if (fAspectRatio < fNativeAspect) {
+                                        ctx.xmm5.f32[0] /= fAspectMultiplier;
+                                    }
+                                }
+                            }
+                        }
+
+                        // Turn change wipe
+                        if (sAPKName == "mask") {
+                            if (*reinterpret_cast<int*>(ctx.r14 + 0x20) == 17 && *reinterpret_cast<int*>(ctx.r14 + 0x28) == 31) {
+                                if (ctx.xmm14.f32[0] == 1920.00f && ctx.xmm3.f32[0] == 1080.00f) {
+                                    if (fAspectRatio > fNativeAspect) {
+                                        ctx.xmm6.f32[0] *= fAspectMultiplier;
+                                    }
+                                    else if (fAspectRatio < fNativeAspect) {
+                                        ctx.xmm5.f32[0] /= fAspectMultiplier;
+                                    }
+                                }
+                            }
+                        }
                     }
                 });
         }
