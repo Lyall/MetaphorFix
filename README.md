@@ -13,7 +13,7 @@ This is a fix for Metaphor: ReFantazio that adds ultrawide/narrower support and 
 - Fix 8-way analog movement.
 - Adjust gameplay FOV.
 - Force controller icons.
-- Disable camera shake.
+- Disable camera shake (everywhere).
  
 ### Ultrawide/narrower
 - Support for any resolution/aspect ratio.
@@ -22,7 +22,6 @@ This is a fix for Metaphor: ReFantazio that adds ultrawide/narrower support and 
 - Fixes stretched HUD.
 
 ### Graphics
-- Disable dash blur + speed lines.
 - Adjust ambient occlusion resolution.
 - Adjust level of detail distance.
 - Disable black outlines.
